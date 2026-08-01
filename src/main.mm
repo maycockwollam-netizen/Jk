@@ -32,60 +32,53 @@ static BOOL g_initialized = NO;
 
 @implementation ZPFloatingButton
 
+static UIWindow *_overlayWindow = nil;
 static UIButton *_btn = nil;
 
 + (void)setup {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (_btn) {
-            ZPLogInfo(@"Button already exists");
+        if (_overlayWindow) {
+            ZPLogInfo(@"Window already exists");
             return;
         }
         
-        ZPLogInfo(@"Creating floating button...");
+        ZPLogInfo(@"Creating overlay window...");
         
-        NSArray *windows = [UIApplication sharedApplication].windows;
-        ZPLogInfo(@"Found %lu windows", (unsigned long)windows.count);
+        // Create new window at highest level
+        _overlayWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+        _overlayWindow.windowLevel = UIWindowLevelAlert + 1; // Higher than everything
+        _overlayWindow.backgroundColor = [UIColor clearColor];
         
-        UIWindow *mainWindow = nil;
-        for (UIWindow *w in windows) {
-            if (w.windowLevel == UIWindowLevelNormal) {
-                mainWindow = w;
-                break;
-            }
-        }
+        UIViewController *vc = [[UIViewController alloc] init];
+        vc.view.backgroundColor = [UIColor clearColor];
+        _overlayWindow.rootViewController = vc;
         
-        if (!mainWindow && windows.count > 0) {
-            mainWindow = windows.firstObject;
-        }
-        
-        if (!mainWindow) {
-            ZPLogError(@"No window found!");
-            return;
-        }
-        
-        CGFloat size = 60;
-        CGFloat x = [UIScreen mainScreen].bounds.size.width - size - 15;
+        // Create button
+        CGFloat size = 70;
+        CGFloat x = [UIScreen mainScreen].bounds.size.width - size - 20;
         
         _btn = [UIButton buttonWithType:UIButtonTypeCustom];
-        _btn.frame = CGRectMake(x, 150, size, size);
-        _btn.backgroundColor = [UIColor colorWithRed:0.0 green:0.5 blue:1.0 alpha:1.0];
+        _btn.frame = CGRectMake(x, 80, size, size);
+        _btn.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:1.0 alpha:1.0];
         _btn.layer.cornerRadius = size / 2;
-        _btn.layer.borderWidth = 3;
+        _btn.layer.borderWidth = 4;
         _btn.layer.borderColor = [UIColor whiteColor].CGColor;
         _btn.layer.shadowColor = [UIColor blackColor].CGColor;
-        _btn.layer.shadowOffset = CGSizeMake(0, 4);
-        _btn.layer.shadowRadius = 10;
-        _btn.layer.shadowOpacity = 0.5;
+        _btn.layer.shadowOffset = CGSizeMake(0, 5);
+        _btn.layer.shadowRadius = 12;
+        _btn.layer.shadowOpacity = 0.6;
         
         [_btn setTitle:@"ZP" forState:UIControlStateNormal];
         [_btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        _btn.titleLabel.font = [UIFont boldSystemFontOfSize:22];
+        _btn.titleLabel.font = [UIFont boldSystemFontOfSize:26];
         
         [_btn addTarget:[self class] action:@selector(tapped) forControlEvents:UIControlEventTouchUpInside];
         
-        [mainWindow addSubview:_btn];
+        [vc.view addSubview:_btn];
         
-        ZPLogInfo(@"Floating button added!");
+        [_overlayWindow makeKeyAndVisible];
+        
+        ZPLogInfo(@"Overlay window created at level %f!", _overlayWindow.windowLevel);
     });
 }
 
