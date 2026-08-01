@@ -1,0 +1,32 @@
+// Chest Proto Messages
+// Source: Protos.dll decompilation
+
+syntax = "proto3";
+package zooba.chest;
+
+// Chests
+message ChestData {
+    int64 id = 1;
+    int32 chest_type = 2;
+    int64 unlock_time = 3;
+    bool is_unlocking = 4;
+}
+
+message DataChest {
+    int64 id = 1;
+    int32 type = 2;
+    int64 unlock_time = 3;
+}
+
+message DataPlayerChests {
+    repeated DataChest chests = 1;
+}
+
+message OpenChestArgs {
+    int64 chest_id = 1;
+}
+
+message OpenChestAnswer {
+    repeated DataItem rewards = 1;
+    bool success = 2;
+}

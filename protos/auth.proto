@@ -1,0 +1,51 @@
+// Auth Proto Messages
+// Source: Protos.dll decompilation
+
+syntax = "proto3";
+package zooba.auth;
+
+// Authentication
+message AuthenticatePlayerArgs {
+    string access_token = 1;      // Player's access token
+    string locale = 2;           // Device locale
+    SyncPlayerArgs sync_player = 3;
+    LocalAbTestArgs local_ab_tests = 4;
+    SyncRemoteConfigArgs remote_config_args = 5;
+    DeviceSettings device_settings = 6;
+    string server_auto_region = 7;
+    string player_chosen_region = 8;
+    bool is_child = 9;
+}
+
+message AuthenticatePlayerAnswer {
+    string code = 1;                    // Auth code
+    string token = 2;                   // JWT token (MAIN AUTH TOKEN)
+    uint64 timestamp_utc = 3;          // Server timestamp
+    DataPlayer data_player = 4;       // Player data
+    DataInventory data_inventory = 5;   // Player inventory
+    DataPlayerChests data_chests = 6;  // Player chests
+    DataMatchInfo data_match_info = 7; // Match info
+    DataItems data_items = 9;
+    DataLoadouts data_loadouts = 10;
+    string config_hash = 11;
+    DataMissions data_missions = 12;
+    DataClan data_clan = 13;
+    DataPiggyBank piggy_bank = 14;
+    Team team = 15;
+    Subscription subscription = 16;
+}
+
+// Session
+message OnSessionBindArgs {
+    string session_id = 1;
+    string player_id = 2;
+}
+
+message OnSessionCloseArgs {
+    string reason = 1;
+}
+
+message DataAccountMigration {
+    string old_account_id = 1;
+    string new_account_id = 2;
+}

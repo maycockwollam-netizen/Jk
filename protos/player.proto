@@ -1,0 +1,62 @@
+// Player Proto Messages
+// Source: Protos.dll decompilation
+
+syntax = "proto3";
+package zooba.player;
+
+// Player Data
+message DataPlayer {
+    int64 id = 1;            // Player ID
+    string name = 2;         // Player name
+    int32 level = 3;        // Player level
+    int32 xp = 4;            // Experience points
+    int32 coins = 5;        // In-game coins
+    int32 gems = 6;          // Premium currency
+    int32 trophies = 7;     // Trophy count
+    int32 wins = 8;         // Total wins
+    int32 losses = 9;       // Total losses
+}
+
+message Player {
+    int64 id = 1;
+    string name = 2;
+    int32 level = 3;
+    int32 trophies = 4;
+}
+
+message PlayerEnterArgs {
+    string player_id = 1;
+    string session_id = 2;
+}
+
+message PlayerEnterAnswer {
+    DataPlayer player = 1;
+    ConfigGame game_config = 2;
+}
+
+message PlayerExitArgs {
+    int64 player_id = 1;
+    string session_id = 2;
+}
+
+message PlayerExitAnswer {
+    bool success = 1;
+}
+
+message PlayerStats {
+    int32 total_games = 1;
+    int32 wins = 2;
+    int32 losses = 3;
+    int32 kills = 4;
+    int32 deaths = 5;
+}
+
+message GetPlayerProfileAnswer {
+    Player player = 1;
+    PlayerStats stats = 2;
+}
+
+message PlayerMembership {
+    int64 player_id = 1;
+    bool is_premium = 2;
+}

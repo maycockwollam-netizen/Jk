@@ -18,6 +18,7 @@
 #import "modules/network/NetworkModule.h"
 #import "modules/utils/UtilsModule.h"
 #import "modules/ui/UIModule.h"
+#import "modules/proto/ProtoParser.h"
 
 // Hooks
 #import "hooks/WildlifeHooks.h"
@@ -73,6 +74,10 @@ static void InitializeModules() {
         [g_uiModule setup];
         ZPLogInfo(@"UI module enabled");
     }
+    
+    // Initialize ProtoParser module
+    [[ProtoParser shared] setup];
+    ZPLogInfo(@"ProtoParser module enabled");
     
     // Log config dump
     ZPLogDebug(@"Config dump: %@", [Config shared].dumpConfig);

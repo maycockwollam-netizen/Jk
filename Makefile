@@ -32,6 +32,7 @@ NETWORK_FILES := $(wildcard $(MODULES_DIR)/network/*.mm) $(wildcard $(MODULES_DI
 STORAGE_FILES := $(wildcard $(MODULES_DIR)/storage/*.mm) $(wildcard $(MODULES_DIR)/storage/*.m)
 UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/utils/*.m)
 UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
+PROTO_FILES := $(wildcard $(MODULES_DIR)/proto/*.mm) $(wildcard $(MODULES_DIR)/proto/*.m)
 
 # Hooks
 HOOK_FILES := $(wildcard $(HOOKS_DIR)/*.mm) $(wildcard $(HOOKS_DIR)/*.m)
@@ -49,7 +50,8 @@ ZOOBAPROTO_FILES := src/main.mm \
                    $(NETWORK_FILES) \
                    $(STORAGE_FILES) \
                    $(UTILS_FILES) \
-                   $(UI_FILES)
+                   $(UI_FILES) \
+                   $(PROTO_FILES)
 
 # Frameworks
 ZOOBAPROTO_FRAMEWORKS := Foundation UIKit Security

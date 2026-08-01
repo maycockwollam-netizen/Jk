@@ -1,0 +1,51 @@
+// Match Proto Messages
+// Source: Protos.dll decompilation
+
+syntax = "proto3";
+package zooba.match;
+
+// Match Making
+message FindMatchArgs {
+    string game_mode = 1;
+    int32 character_id = 2;
+}
+
+message FindMatchAnswer {
+    string match_id = 1;
+    repeated MatchPlayer players = 2;
+    int32 estimated_start_time = 3;
+}
+
+message StartMatchArgs {
+    string match_id = 1;
+}
+
+message FinishMatchArgs {
+    string match_id = 1;
+    int32 placement = 2;
+    int32 kills = 3;
+    int32 damage_dealt = 4;
+}
+
+message Match {
+    string id = 1;
+    string game_mode = 2;
+    repeated MatchPlayer players = 3;
+    int32 status = 4;  // 0=lobby, 1=starting, 2=in_progress, 3=finished
+}
+
+message MatchPlayer {
+    int64 player_id = 1;
+    string player_name = 2;
+    int32 character_id = 3;
+    int32 level = 4;
+    int32 trophies = 5;
+}
+
+message GetMatchPlayersArgs {
+    string match_id = 1;
+}
+
+message GetMatchPlayersAnswer {
+    repeated MatchPlayer players = 1;
+}

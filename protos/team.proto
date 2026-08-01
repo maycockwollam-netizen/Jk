@@ -1,0 +1,63 @@
+// Team and Clan Proto Messages
+// Source: Protos.dll decompilation
+
+syntax = "proto3";
+package zooba.team;
+
+// Team
+message Team {
+    string id = 1;
+    string name = 2;
+    repeated TeamMember members = 3;
+    int32 max_members = 4;
+}
+
+message TeamMember {
+    int64 player_id = 1;
+    string player_name = 2;
+    int32 character_id = 3;
+    bool is_ready = 4;
+}
+
+message CreateTeamArgs {
+    string name = 1;
+}
+
+message JoinTeamArgs {
+    string team_id = 1;
+}
+
+message InviteFriendToTeamArgs {
+    string team_id = 1;
+    int64 friend_player_id = 2;
+}
+
+// Clan
+message ClanCreationArgs {
+    string name = 1;
+    string badge = 2;
+}
+
+message ClanCreationAnswer {
+    Clan clan = 1;
+    bool success = 2;
+}
+
+message GetClanAnswer {
+    Clan clan = 1;
+}
+
+message ClanMember {
+    int64 player_id = 1;
+    string player_name = 2;
+    string rank = 3;
+    int32 level = 4;
+}
+
+message DataClan {
+    int64 id = 1;
+    string name = 2;
+    string badge = 3;
+    int32 member_count = 4;
+    int32 trophy_count = 5;
+}
