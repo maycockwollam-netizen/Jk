@@ -55,45 +55,46 @@
         _foundTokens = [NSMutableDictionary dictionary];
         _tokenKeys = [NSMutableArray array];
         
-        // Wildlife Platform storage keys (from reverse engineering)
-        // Based on PlayerAccount, PlatformAccountManager
+        // Wildlife Platform storage keys (VERIFIED from reverse engineering)
+        // Source: Wildlife.Platform.Core.dll.cs
+        
+        // === PlatformAccountManager ===
+        // PlayerPrefsLastAccountKey - stores last logged in account ID
         [_tokenKeys addObjectsFromArray:@[
-            // PlatformAccountManager keys
             @"wildlife_last_account",
-            @"wildlife_account_id",
-            @"wildlife_platform_account",
-            @"wl_account",
+            @"wl_last_account",
+            @"last_account_id",
             
-            // PlayerPrefsLastAccountKey
-            @"wl_player_prefs_last_account",
-            
-            // SecurityToken related
-            @"security_token",
+            // === PlayerAccount SecurityToken ===
+            // PlayerAccount.SecurityToken - JWT token
             @"securityToken",
-            @"wildlife_security_token",
+            @"security_token",
             @"platform_security_token",
             
-            // Generic token keys
-            @"wildlife_access_token",
-            @"wildlife_auth_token",
+            // === AccessToken from AuthenticatePlayerArgs ===
+            @"accessToken",
             @"access_token",
-            @"auth_token",
-            @"player_access_token",
-            @"wl_access_token",
-            @"session_token",
-            @"player_token",
-            @"bearer_token",
+            @"auth_access_token",
             
-            // PlayerID
-            @"player_id",
-            @"playerId",
-            @"wl_player_id",
-            @"platform_player_id",
+            // === PlayerAccount.Id ===
+            @"accountId",
+            @"account_id",
+            @"player_account_id",
             
-            // Tenant ID
-            @"tenant_id",
+            // === PlayerAccount.TenantId ===
             @"tenantId",
-            @"wildlife_tenant_id"
+            @"tenant_id",
+            
+            // === File Storage ===
+            // player_data.json - Unity player data
+            @"player_data_json",
+            
+            // === Generic ===
+            @"bearer_token",
+            @"bearerToken",
+            @"auth_token",
+            @"session_token",
+            @"jwt_token"
         ]];
     }
     return self;
