@@ -246,57 +246,46 @@ static void RegisterAppLifecycle() {
 
 // ========== ENTRY POINT ==========
 
+static BOOL g_initialized = NO;
+
 __attribute__((constructor))
 static void ZoobaProtoInit() {
     ZPLog(@"");
-    ZPLog(@"╔══════════════════════════════════════════════╗");
-    ZPLog(@"║        ZoobaProto v%@                    ║", kVersion);
-    ZPLog(@"║        Bearer Token Dumper                  ║");
-    ZPLog(@"╚══════════════════════════════════════════════╝");
-    ZPLog(@"");
-    
-    @try {
-        // Check if target app
-        NSString *currentBundleID = [[NSBundle mainBundle] bundleIdentifier];
-        
-        if (currentBundleID && ![currentBundleID isEqualToString:kTargetBundleID]) {
-            ZPLogDebug(@"Not target app (%@), skipping...", currentBundleID);
-            return;
-        }
-        
-        ZPLogInfo(@"Target app detected: %@", kTargetBundleID);
-        
-        // Initialize all modules
-        InitializeModules();
-        
-        // Install hooks
-        InstallHooks();
-        
-        // Register lifecycle
-        RegisterAppLifecycle();
-        
-        // Perform initial dump after short delay
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), 
-                       dispatch_get_main_queue(), ^{
-            PerformInitialDump();
-        });
-        
-        ZPLog(@"");
-        ZPLog(@"✅ ZoobaProto v%@ loaded successfully!", kVersion);
-        ZPLog(@"   Dump interval: %.0f seconds", [Config shared].dumpInterval);
-        ZPLog(@"   Features: %@%@%@%@%@", 
-              [Config shared].enableTokenDump ? @"TokenDump " : @"",
-              [Config shared].enableNetworkHook ? @"NetworkHook " : @"",
-              [Config shared].enablePitayaHook ? @"ProtoInterceptor " : @"",
-              [Config shared].enableUIPanel ? @"UI " : @"",
-              @"[ProtoBuf Capture ENABLED]");
-        ZPLog(@"");
-        ZPLog(@"💡 Use the floating bubble (ZP) to access the menu!");
-        ZPLog(@"📡 ProtoInterceptor will capture Pitaya/Protobuf traffic!");
-        ZPLog(@"");
-        
-    } @catch (NSException *exception) {
-        ZPLogError(@"Fatal exception during initialization: %@", exception.reason);
-        ZPLogError(@"Stack trace: %@", exception.callStackSymbols);
+    ZPLog(@"ZoobaProto v%@ - Loading...", kVersion);
+
+    // Check bundle ID FIRST
+    NSString *currentBundleID = [[NSBundle mainBundle] bundleIdentifier];
+    ZPLogInfo(@"Bundle ID: %@", currentBundleID);
+
+    if (currentBundleID && ![currentBundleID isEqualToString:kTargetBundleID]) {
+        ZPLogDebug(@"Not target app (%@), skipping...", currentBundleID);
+        return;
     }
+
+    ZPLogInfo(@"Target app detected: %@", kTargetBundleID);
+
+    // DELAY initialization until app is ready (prevents crash)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (g_initialized) return;
+        g_initialized = YES;
+
+        @try {
+            InitializeModules();
+            InstallHooks();
+            RegisterAppLifecycle();
+
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                PerformInitialDump();
+            });
+
+            ZPLog(@"ZoobaProto v%@ loaded successfully!", kVersion);
+            ZPLog(@"Dump interval: %.0f seconds", [Config shared].dumpInterval);
+
+        } @catch (NSException *exception) {
+            ZPLogError(@"Fatal exception: %@", exception.reason);
+        }
+    });
 }
+
