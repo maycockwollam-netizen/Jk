@@ -35,6 +35,7 @@ UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
 
 # Hooks
 HOOK_FILES := $(wildcard $(HOOKS_DIR)/*.mm) $(wildcard $(HOOKS_DIR)/*.m)
+SWIZZLER_FILES := $(wildcard $(HOOKS_DIR)/Swizzler.*)
 
 # Config
 CONFIG_FILES := $(wildcard src/config/*.mm) $(wildcard src/config/*.m)
@@ -42,6 +43,7 @@ CONFIG_FILES := $(wildcard src/config/*.mm) $(wildcard src/config/*.m)
 # All source files
 ZOOBAPROTO_FILES := src/main.mm \
                    $(CONFIG_FILES) \
+                   $(SWIZZLER_FILES) \
                    $(HOOK_FILES) \
                    $(CORE_FILES) \
                    $(NETWORK_FILES) \
