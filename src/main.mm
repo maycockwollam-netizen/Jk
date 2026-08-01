@@ -19,6 +19,7 @@
 #import "modules/utils/UtilsModule.h"
 #import "modules/ui/UIModule.h"
 #import "modules/proto/ProtoParser.h"
+#import "modules/protointerceptor/ProtoInterceptor.h"
 
 // Hooks
 #import "hooks/WildlifeHooks.h"
@@ -36,10 +37,10 @@
 
 // ========== CONSTANTS ==========
 
-static NSString * const kTargetBundleID = @"com.wildlife.games.battle.royale.free.zooba";
+static NSString * const kTargetBundleID = @"com.fungames.battleroyale";
 static NSString * const kTargetProcessName = @"Zooba";
-static NSString * const kVersion = @"2.0.0";
-static NSString * const kBuildDate = @"2024-01-01";
+static NSString * const kVersion = @"2.1.0";
+static NSString * const kBuildDate = @"2024-01-15";
 
 // ========== MODULE INSTANCES ==========
 
@@ -48,6 +49,7 @@ static StorageModule *g_storageModule = nil;
 static NetworkModule *g_networkModule = nil;
 static UtilsModule *g_utilsModule = nil;
 static UIModule *g_uiModule = nil;
+static ProtoInterceptor *g_protoInterceptor = nil;
 
 // NEW UI Menu
 static ZoobaProtoMenu *g_zoobaMenu = nil;
@@ -89,6 +91,11 @@ static void InitializeModules() {
     [[ProtoParser shared] setup];
     ZPLogInfo(@"ProtoParser module enabled");
     
+    // Initialize ProtoInterceptor (fishhook-based)
+    g_protoInterceptor = [ProtoInterceptor shared];
+    [g_protoInterceptor setup];
+    ZPLogInfo(@"ProtoInterceptor module enabled");
+    
     // Log config dump
     ZPLogDebug(@"Config dump: %@", [Config shared].dumpConfig);
     
@@ -112,6 +119,10 @@ static void InstallHooks() {
     } else {
         ZPLogInfo(@"Pitaya hooks disabled");
     }
+    
+    // Install ProtoInterceptor hooks (fishhook for socket functions)
+    [g_protoInterceptor installHooks];
+    ZPLogInfo(@"ProtoInterceptor hooks installed");
     
     // Install Unity hooks
     [UnityHooks install];
@@ -268,15 +279,17 @@ static void ZoobaProtoInit() {
         });
         
         ZPLog(@"");
-        ZPLog(@"✅ ZoobaProto loaded successfully!");
+        ZPLog(@"✅ ZoobaProto v%@ loaded successfully!", kVersion);
         ZPLog(@"   Dump interval: %.0f seconds", [Config shared].dumpInterval);
-        ZPLog(@"   Features: %@%@%@%@", 
+        ZPLog(@"   Features: %@%@%@%@%@", 
               [Config shared].enableTokenDump ? @"TokenDump " : @"",
               [Config shared].enableNetworkHook ? @"NetworkHook " : @"",
-              [Config shared].enablePitayaHook ? @"PitayaHook " : @"",
-              [Config shared].enableUIPanel ? @"UI (New Menu!)" : @"");
+              [Config shared].enablePitayaHook ? @"ProtoInterceptor " : @"",
+              [Config shared].enableUIPanel ? @"UI " : @"",
+              @"[ProtoBuf Capture ENABLED]");
         ZPLog(@"");
         ZPLog(@"💡 Use the floating bubble (ZP) to access the menu!");
+        ZPLog(@"📡 ProtoInterceptor will capture Pitaya/Protobuf traffic!");
         ZPLog(@"");
         
     } @catch (NSException *exception) {

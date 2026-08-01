@@ -8,10 +8,10 @@ THEOS_DEVICE_IP := localhost
 THEOS_DEVICE_PORT := 2222
 
 # Package Info
-PACKAGE_VERSION := 2.0.0
+PACKAGE_VERSION := 2.1.0
 PKG_NAME := ZoobaProto
 PKG_BUNDLEID := com.zoobaproto.tokenDumper
-PKG_DESCRIPTION := Zooba Bearer Token Dumper - Extract auth tokens from Wildlife/Pitaya
+PKG_DESCRIPTION := Zooba ProtoBuf Interceptor - Capture Pitaya/Protobuf traffic
 PKG_MAINTAINER := ZoobaProto
 PKG_AUTHOR := ZoobaProto
 PKG_SECTION := Tweaks
@@ -33,6 +33,7 @@ STORAGE_FILES := $(wildcard $(MODULES_DIR)/storage/*.mm) $(wildcard $(MODULES_DI
 UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/utils/*.m)
 UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
 PROTO_FILES := $(wildcard $(MODULES_DIR)/proto/*.mm) $(wildcard $(MODULES_DIR)/proto/*.m)
+PROTO_INTERCEPTOR_FILES := $(wildcard $(MODULES_DIR)/protointerceptor/*.mm) $(wildcard $(MODULES_DIR)/protointerceptor/*.m)
 PROTO_UI_FILES := $(wildcard $(MODULES_DIR)/ui/ProtoUI.*)
 
 # Hooks
@@ -53,15 +54,18 @@ ZOOBAPROTO_FILES := src/main.mm \
                    $(UTILS_FILES) \
                    $(UI_FILES) \
                    $(PROTO_UI_FILES) \
-                   $(PROTO_FILES)
+                   $(PROTO_FILES) \
+                   $(PROTO_INTERCEPTOR_FILES)
 
 # Frameworks
 ZOOBAPROTO_FRAMEWORKS := Foundation UIKit Security
 ZOOBAPROTO_PRIVATE_FRAMEWORKS :=
 
+# External Libraries - fishhook for C function hooking
+ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip -lfishhook
+
 # Flags
 ZOOBAPROTO_CFLAGS := -fobjc-arc -w -DDEBUG=$(DEBUG)
-ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip
 
 # Include Theos
 include $(THEOS)/makefiles/common.mk
