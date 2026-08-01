@@ -19,12 +19,13 @@ typedef NS_ENUM(NSInteger, ZPProtoDirection) {
 #pragma mark - Proto Message Info
 
 @interface ZPProtoMessageInfo : NSObject
-@property (nonatomic, copy) NSString *messageName;
+@property (nonatomic, copy) NSString *route;         // Full route string (e.g., "metagame.playerHandler.authenticate")
+@property (nonatomic, copy) NSString *messageName;    // Short name (e.g., "Authenticate")
 @property (nonatomic, assign) ZPProtoDirection direction;
 @property (nonatomic, strong) NSData *rawData;
-@property (nonatomic, assign) uint16_t routeType;  // Pitaya route type (first 2 bytes)
-@property (nonatomic, assign) uint16_t routeId;   // Pitaya route ID
-@property (nonatomic, strong) NSData *payload;
+@property (nonatomic, assign) uint8_t msgType;        // Pitaya message type
+@property (nonatomic, assign) uint32_t requestId;     // Request ID (for response matching)
+@property (nonatomic, strong) NSData *payload;       // Raw protobuf data
 @property (nonatomic, strong) NSDate *timestamp;
 @property (nonatomic, strong, nullable) NSDictionary *parsedData;
 @end
@@ -54,9 +55,9 @@ typedef NS_ENUM(NSInteger, ZPProtoDirection) {
 // Callbacks
 @property (nonatomic, copy, nullable) void (^onMessageCaptured)(ZPProtoMessageInfo *message);
 
-// Known route mappings (Pitaya uses route IDs)
-- (void)registerRouteId:(uint16_t)routeId withName:(NSString *)name;
-- (NSString *)routeNameForId:(uint16_t)routeId;
+// Route mappings (Pitaya uses STRING routes!)
+- (void)registerRoute:(NSString *)route withName:(NSString *)name;
+- (NSString *)shortNameForRoute:(NSString *)route;
 
 @end
 

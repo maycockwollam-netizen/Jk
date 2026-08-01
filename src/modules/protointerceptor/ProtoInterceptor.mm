@@ -3,6 +3,9 @@
 //  ZoobaProto
 //
 //  ProtoBuf message interceptor using fishhook
+//  Based on real routes from Zooba dump:
+//  - Pitaya uses STRING routes (not numeric IDs!)
+//  - Format: "metagame.playerHandler.authenticate"
 //
 
 #import "ProtoInterceptor.h"
@@ -14,7 +17,7 @@
 
 #define ZPLog(fmt, args...) \
     if (self.enabled && self.logToConsole) { \
-        NSLog(@"[ZoobaProto/ProtoInterceptor] " fmt, ##args); \
+        NSLog(@"[ZoobaProto/Proto] " fmt, ##args); \
     }
 
 #pragma mark - ZPProtoMessageInfo
@@ -31,11 +34,10 @@
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<ZPProtoMessage: %@ %@ route=%d id=%d size=%lu>",
-            _direction == ZPProtoDirectionSend ? @"SEND" : @"RECV",
-            _messageName ?: @"Unknown",
-            _routeType, _routeId,
-            (unsigned long)(_rawData ? _rawData.length : 0)];
+    NSString *dir = _direction == ZPProtoDirectionSend ? @"SEND" : @"RECV";
+    return [NSString stringWithFormat:@"<ProtoMsg %@ route=%@ size=%lu>",
+            dir, _route ?: _messageName ?: @"Unknown",
+            (unsigned long)(_payload ? _payload.length : 0)];
 }
 
 @end
@@ -44,20 +46,180 @@
 
 @interface ProtoInterceptor ()
 @property (nonatomic, strong) NSMutableArray<ZPProtoMessageInfo *> *mutableMessages;
-@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSString *> *routeMappings;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *routeMappings;
+@property (nonatomic, assign) uint32_t currentRequestId;
 @end
 
 #pragma mark - Original Function Pointers
 
-// Socket functions
 static int (*original_send)(int sockfd, const void *buf, size_t len, int flags);
 static int (*original_recv)(int sockfd, void *buf, size_t len, int flags);
 static int (*original_write)(int fd, const void *buf, size_t count);
 static int (*original_read)(int fd, void *buf, size_t count);
 
-// SSL functions
-static int (*original_SSLWrite)(void *ssl, void *buf, int num);
-static int (*original_SSLRead)(void *ssl, void *buf, int num);
+#pragma mark - Helper Functions
+
+// Read varint from buffer
+static uint32_t readVarint(const uint8_t **ptr, const uint8_t *end) {
+    uint32_t result = 0;
+    uint8_t shift = 0;
+    while (*ptr < end) {
+        uint8_t byte = *(*ptr)++;
+        result |= (byte & 0x7F) << shift;
+        if ((byte & 0x80) == 0) break;
+        shift += 7;
+    }
+    return result;
+}
+
+// Read protobuf field from buffer
+static NSDictionary *readProtobufField(const uint8_t **ptr, const uint8_t *end) {
+    if (*ptr >= end) return nil;
+    
+    uint8_t tag = *(*ptr)++;
+    uint32_t fieldNum = tag >> 3;
+    uint32_t wireType = tag & 0x07;
+    
+    NSMutableDictionary *field = [NSMutableDictionary dictionary];
+    field[@"fieldNumber"] = @(fieldNum);
+    field[@"wireType"] = @(wireType);
+    
+    switch (wireType) {
+        case 0: { // Varint
+            uint32_t val = readVarint(ptr, end);
+            field[@"value"] = @(val);
+            field[@"type"] = @"varint";
+            break;
+        }
+        case 1: { // 64-bit
+            if (*ptr + 8 <= end) {
+                uint64_t val = 0;
+                for (int i = 0; i < 8; i++) {
+                    val = (val << 8) | *(*ptr)++;
+                }
+                field[@"value"] = @(val);
+                field[@"type"] = @"fixed64";
+            }
+            break;
+        }
+        case 2: { // Length-delimited
+            uint32_t len = readVarint(ptr, end);
+            if (*ptr + len <= end) {
+                NSData *data = [NSData dataWithBytes:*ptr length:len];
+                *ptr += len;
+                
+                // Try to decode as string
+                NSString *str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                if (str) {
+                    field[@"value"] = str;
+                    field[@"type"] = @"string";
+                } else {
+                    // Hex for binary data
+                    NSMutableString *hex = [NSMutableString string];
+                    const uint8_t *hexBytes = data.bytes;
+                    for (NSUInteger i = 0; i < MIN(data.length, 32); i++) {
+                        [hex appendFormat:@"%02X", hexBytes[i]];
+                    }
+                    if (data.length > 32) [hex appendString:@"..."];
+                    field[@"value"] = [NSString stringWithFormat:@"<%lu bytes: %@>", (unsigned long)data.length, hex];
+                    field[@"type"] = @"bytes";
+                }
+            }
+            break;
+        }
+        case 5: { // 32-bit
+            if (*ptr + 4 <= end) {
+                uint32_t val = 0;
+                for (int i = 0; i < 4; i++) {
+                    val = (val << 8) | *(*ptr)++;
+                }
+                field[@"value"] = @(val);
+                field[@"type"] = @"fixed32";
+            }
+            break;
+        }
+        default:
+            field[@"type"] = @"unknown";
+            break;
+    }
+    
+    return field;
+}
+
+// Parse protobuf data to dictionary
+static NSDictionary *parseProtobuf(const uint8_t *data, NSUInteger length) {
+    NSMutableDictionary *result = [NSMutableDictionary dictionary];
+    const uint8_t *ptr = data;
+    const uint8_t *end = data + length;
+    
+    while (ptr < end) {
+        NSDictionary *field = readProtobufField(&ptr, end);
+        if (field) {
+            NSNumber *fieldNum = field[@"fieldNumber"];
+            id value = field[@"value"];
+            
+            if (fieldNum && value) {
+                NSString *key = [NSString stringWithFormat:@"field_%@", fieldNum];
+                result[key] = value;
+            }
+        }
+    }
+    
+    return result;
+}
+
+// Parse Pitaya packet
+// Format: [type:1][route_len:varint][route:route_len bytes][request_id:varint][protobuf_data...]
+static NSDictionary *parsePitayaPacket(const uint8_t *data, NSUInteger length, BOOL isSend) {
+    if (length < 2) return nil;
+    
+    NSMutableDictionary *packet = [NSMutableDictionary dictionary];
+    const uint8_t *ptr = data;
+    const uint8_t *end = data + length;
+    
+    // Read message type
+    uint8_t msgType = *ptr++;
+    packet[@"msgType"] = @(msgType);
+    
+    NSArray *typeNames = @[@"Request", @"Response", @"Push", @"Error"];
+    packet[@"msgTypeName"] = typeNames[msgType & 0x03];
+    
+    // Read route length (varint)
+    uint32_t routeLen = readVarint(&ptr, end);
+    if (routeLen == 0 || ptr + routeLen > end) return nil;
+    
+    // Read route string
+    NSString *route = [[NSString alloc] initWithBytes:ptr length:routeLen encoding:NSUTF8StringEncoding];
+    if (!route) return nil;
+    ptr += routeLen;
+    
+    packet[@"route"] = route;
+    
+    // For responses, read request ID
+    uint8_t type = msgType & 0x03;
+    if (type == 1 || type == 2) { // Request or Response
+        if (ptr < end) {
+            uint32_t reqId = readVarint(&ptr, end);
+            packet[@"requestId"] = @(reqId);
+        }
+    }
+    
+    // Remaining data is protobuf payload
+    if (ptr < end) {
+        NSUInteger payloadLen = end - ptr;
+        NSData *payload = [NSData dataWithBytes:ptr length:payloadLen];
+        packet[@"payload"] = payload;
+        packet[@"payloadLength"] = @(payloadLen);
+        
+        // Try to parse protobuf
+        NSDictionary *parsed = parseProtobuf(ptr, payloadLen);
+        if (parsed.count > 0) {
+            packet[@"parsedData"] = parsed;
+        }
+    }
+    
+    return packet;
+}
 
 #pragma mark - Hooked Functions
 
@@ -72,14 +234,19 @@ static int hooked_send(int sockfd, const void *buf, size_t len, int flags) {
     }
     
     @try {
-        NSData *data = [NSData dataWithBytes:buf length:len];
-        
-        // Check if it's likely Pitaya/Protobuf data
-        if ([interceptor isLikelyProtobufData:data direction:ZPProtoDirectionSend]) {
+        NSDictionary *packet = parsePitayaPacket(buf, len, YES);
+        if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionSend;
-            msg.rawData = data;
-            [interceptor parseAndLogMessage:msg];
+            msg.route = packet[@"route"];
+            msg.msgType = [packet[@"msgType"] unsignedCharValue];
+            msg.requestId = [packet[@"requestId"] unsignedIntValue];
+            msg.payload = packet[@"payload"];
+            msg.rawData = [NSData dataWithBytes:buf length:len];
+            msg.parsedData = packet[@"parsedData"];
+            msg.messageName = [interceptor shortNameForRoute:msg.route];
+            
+            [interceptor captureMessage:msg];
         }
     } @catch (NSException *e) {
         // Silently ignore
@@ -91,7 +258,7 @@ static int hooked_send(int sockfd, const void *buf, size_t len, int flags) {
 static int hooked_recv(int sockfd, void *buf, size_t len, int flags) {
     int result = original_recv(sockfd, buf, len, flags);
     
-    if (result <= 4) {
+    if (result < 4) {
         return result;
     }
     
@@ -101,14 +268,19 @@ static int hooked_recv(int sockfd, void *buf, size_t len, int flags) {
     }
     
     @try {
-        NSData *data = [NSData dataWithBytes:buf length:result];
-        
-        // Check if it's likely Pitaya/Protobuf data
-        if ([interceptor isLikelyProtobufData:data direction:ZPProtoDirectionRecv]) {
+        NSDictionary *packet = parsePitayaPacket(buf, result, NO);
+        if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionRecv;
-            msg.rawData = data;
-            [interceptor parseAndLogMessage:msg];
+            msg.route = packet[@"route"];
+            msg.msgType = [packet[@"msgType"] unsignedCharValue];
+            msg.requestId = [packet[@"requestId"] unsignedIntValue];
+            msg.payload = packet[@"payload"];
+            msg.rawData = [NSData dataWithBytes:buf length:result];
+            msg.parsedData = packet[@"parsedData"];
+            msg.messageName = [interceptor shortNameForRoute:msg.route];
+            
+            [interceptor captureMessage:msg];
         }
     } @catch (NSException *e) {
         // Silently ignore
@@ -128,13 +300,19 @@ static int hooked_write(int fd, const void *buf, size_t count) {
     }
     
     @try {
-        NSData *data = [NSData dataWithBytes:buf length:count];
-        
-        if ([interceptor isLikelyProtobufData:data direction:ZPProtoDirectionSend]) {
+        NSDictionary *packet = parsePitayaPacket(buf, count, YES);
+        if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionSend;
-            msg.rawData = data;
-            [interceptor parseAndLogMessage:msg];
+            msg.route = packet[@"route"];
+            msg.msgType = [packet[@"msgType"] unsignedCharValue];
+            msg.requestId = [packet[@"requestId"] unsignedIntValue];
+            msg.payload = packet[@"payload"];
+            msg.rawData = [NSData dataWithBytes:buf length:count];
+            msg.parsedData = packet[@"parsedData"];
+            msg.messageName = [interceptor shortNameForRoute:msg.route];
+            
+            [interceptor captureMessage:msg];
         }
     } @catch (NSException *e) {
         // Silently ignore
@@ -146,7 +324,7 @@ static int hooked_write(int fd, const void *buf, size_t count) {
 static int hooked_read(int fd, void *buf, size_t count) {
     int result = original_read(fd, buf, count);
     
-    if (result <= 4) {
+    if (result < 4) {
         return result;
     }
     
@@ -156,13 +334,19 @@ static int hooked_read(int fd, void *buf, size_t count) {
     }
     
     @try {
-        NSData *data = [NSData dataWithBytes:buf length:result];
-        
-        if ([interceptor isLikelyProtobufData:data direction:ZPProtoDirectionRecv]) {
+        NSDictionary *packet = parsePitayaPacket(buf, result, NO);
+        if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionRecv;
-            msg.rawData = data;
-            [interceptor parseAndLogMessage:msg];
+            msg.route = packet[@"route"];
+            msg.msgType = [packet[@"msgType"] unsignedCharValue];
+            msg.requestId = [packet[@"requestId"] unsignedIntValue];
+            msg.payload = packet[@"payload"];
+            msg.rawData = [NSData dataWithBytes:buf length:result];
+            msg.parsedData = packet[@"parsedData"];
+            msg.messageName = [interceptor shortNameForRoute:msg.route];
+            
+            [interceptor captureMessage:msg];
         }
     } @catch (NSException *e) {
         // Silently ignore
@@ -191,13 +375,14 @@ static int hooked_read(int fd, void *buf, size_t count) {
         _logToConsole = YES;
         _mutableMessages = [NSMutableArray array];
         _routeMappings = [NSMutableDictionary dictionary];
-        [self registerDefaultRoutes];
+        _currentRequestId = 1;
+        [self registerAllRoutes];
     }
     return self;
 }
 
 - (void)setup {
-    ZPLog(@"ProtoInterceptor setup");
+    ZPLog(@"ProtoInterceptor v2.1 - STRING ROUTES mode");
 }
 
 - (void)teardown {
@@ -205,288 +390,202 @@ static int hooked_read(int fd, void *buf, size_t count) {
     [_mutableMessages removeAllObjects];
 }
 
-#pragma mark - Route Mappings
+#pragma mark - Route Registration
 
-- (void)registerDefaultRoutes {
-    // Pitaya uses route IDs for routing messages
-    // Based on reverse-engineering:
+- (void)registerAllRoutes {
+    [_routeMappings removeAllObjects];
     
-    // C# Method names found in binary:
-    // - ClientFindMatch, ClientMatchFinish, ClientMatchStart
-    // - CreateMatchmaker, CreateObjectConfig, CreateOfflineMatch
-    // - AuthenticatePlayer (from proto definitions)
+    // AUTHENTICATION
+    [self registerRoute:@"metagame.playerHandler.authenticate" withName:@"Authenticate"];
+    [self registerRoute:@"metagame.playerHandler.changeName" withName:@"ChangeName"];
+    [self registerRoute:@"metagame.playerHandler.timestamp" withName:@"Timestamp"];
+    [self registerRoute:@"metagame.playerHandler.setPlayerOnline" withName:@"SetOnline"];
     
-    // IMPORTANT: Route IDs are NOT easily found in binary
-    // Need IL2CPP metadata parser to extract exact IDs
+    // MATCHMAKING
+    [self registerRoute:@"metagame.matchmakingHandler.findMatch" withName:@"FindMatch"];
+    [self registerRoute:@"metagame.matchmakingHandler.findTeamMatch" withName:@"FindTeamMatch"];
+    [self registerRoute:@"metagame.matchmakingHandler.getRoomsForPing" withName:@"GetRoomsForPing"];
     
-    // Placeholder IDs - will be populated by runtime discovery
-    // These are guessed based on common Wildlife Studios patterns
+    // MATCH (Gameplay)
+    [self registerRoute:@"metagame.matchRemote.createMatch" withName:@"CreateMatch"];
+    [self registerRoute:@"metagame.matchRemote.startMatch" withName:@"StartMatch"];
+    [self registerRoute:@"metagame.matchRemote.finishMatch" withName:@"FinishMatch"];
+    [self registerRoute:@"metagame.matchRemote.playerExitRoom" withName:@"PlayerExitRoom"];
+    [self registerRoute:@"metagame.matchHandler.getMatchLog" withName:@"GetMatchLog"];
     
-    // Auth
-    [self registerRouteId:1 withName:@"Authenticate"];
-    [self registerRouteId:2 withName:@"AuthAnswer"];
-    [self registerRouteId:3 withName:@"Heartbeat"];
+    // PLAYER
+    [self registerRoute:@"metagame.playerHandler.changeChar" withName:@"ChangeChar"];
+    [self registerRoute:@"metagame.playerHandler.getLoadouts" withName:@"GetLoadouts"];
+    [self registerRoute:@"metagame.playerHandler.exchangeGems" withName:@"ExchangeGems"];
+    [self registerRoute:@"metagame.playerHandler.getMetagamePlayerProfile" withName:@"GetPlayerProfile"];
+    [self registerRoute:@"metagame.playerHandler.claimReward" withName:@"ClaimReward"];
     
-    // Matchmaking
-    [self registerRouteId:10 withName:@"FindMatch"];
-    [self registerRouteId:11 withName:@"MatchFound"];
-    [self registerRouteId:12 withName:@"MatchStart"];
-    [self registerRouteId:13 withName:@"MatchData"];
-    [self registerRouteId:14 withName:@"MatchFinish"];
+    // ITEMS
+    [self registerRoute:@"metagame.playerItemHandler.upgradeItemLevel" withName:@"UpgradeItemLevel"];
+    [self registerRoute:@"metagame.playerItemHandler.swapLoadoutItems" withName:@"SwapLoadoutItems"];
+    [self registerRoute:@"metagame.playerItemHandler.markNotNew" withName:@"MarkItemNotNew"];
     
-    // Gameplay (RPCs)
-    [self registerRouteId:20 withName:@"RpcMove"];
-    [self registerRouteId:21 withName:@"RpcAttack"];
-    [self registerRouteId:22 withName:@"RpcUseSkill"];
-    [self registerRouteId:23 withName:@"RpcHit"];
-    [self registerRouteId:24 withName:@"RpcDie"];
-    [self registerRouteId:25 withName:@"RpcRespawn"];
+    // CHARACTERS
+    [self registerRoute:@"metagame.characterHandler.changeCharSkin" withName:@"ChangeSkin"];
+    [self registerRoute:@"metagame.characterHandler.unlockCharacter" withName:@"UnlockCharacter"];
+    [self registerRoute:@"metagame.characterHandler.upgradeCharacterLevel" withName:@"UpgradeCharLevel"];
+    [self registerRoute:@"metagame.characterHandler.updateWeaponPoints" withName:@"UpdateWeaponPoints"];
     
-    // Economy
-    [self registerRouteId:30 withName:@"OpenChest"];
-    [self registerRouteId:31 withName:@"ChestData"];
-    [self registerRouteId:32 withName:@"Inventory"];
+    // CHEST
+    [self registerRoute:@"metagame.chestHandler.startUnlocking" withName:@"StartUnlockChest"];
+    [self registerRoute:@"metagame.chestHandler.enqueueChest" withName:@"QueueChest"];
+    [self registerRoute:@"metagame.chestHandler.openMatchChest" withName:@"OpenMatchChest"];
+    [self registerRoute:@"metagame.chestHandler.openFreeChest" withName:@"OpenFreeChest"];
+    [self registerRoute:@"metagame.chestHandler.openShopChest" withName:@"OpenShopChest"];
+    [self registerRoute:@"metagame.chestHandler.reRollMatchChest" withName:@"ReRollMatchChest"];
+    [self registerRoute:@"metagame.chestHandler.reRollFreeChest" withName:@"ReRollFreeChest"];
+    [self registerRoute:@"metagame.chestHandler.commitMatchChestChanges" withName:@"CommitMatchChest"];
+    [self registerRoute:@"metagame.chestHandler.commitFreeChestChanges" withName:@"CommitFreeChest"];
     
-    // Purchase
-    [self registerRouteId:40 withName:@"Purchase"];
-    [self registerRouteId:41 withName:@"PurchaseResult"];
+    // SHOP/PURCHASE
+    [self registerRoute:@"metagame.shopHandler.purchase" withName:@"Purchase"];
+    [self registerRoute:@"metagame.shopHandler.registerPurchaseIntent" withName:@"RegisterPurchaseIntent"];
+    [self registerRoute:@"metagame.shopHandler.registerConfirmedPurchaseIntent" withName:@"ConfirmPurchaseIntent"];
+    [self registerRoute:@"metagame.offerHandler.purchaseOffer" withName:@"PurchaseOffer"];
+    [self registerRoute:@"metagame.offerHandler.getOfferBundle" withName:@"GetOfferBundle"];
+    [self registerRoute:@"metagame.pendingPurchasesHandler.getPendingPurchase" withName:@"GetPendingPurchase"];
     
-    // Clan
-    [self registerRouteId:50 withName:@"ClanInfo"];
-    [self registerRouteId:51 withName:@"ClanMember"];
+    // CLAN
+    [self registerRoute:@"metagame.clanHandler.getClan" withName:@"GetClan"];
+    [self registerRoute:@"metagame.clanHandler.createClan" withName:@"CreateClan"];
+    [self registerRoute:@"metagame.clanHandler.searchClans" withName:@"SearchClans"];
+    [self registerRoute:@"metagame.clanHandler.applyForClan" withName:@"ApplyForClan"];
+    [self registerRoute:@"metagame.clanHandler.inviteToClan" withName:@"InviteToClan"];
+    [self registerRoute:@"metagame.clanHandler.approveApplication" withName:@"ApproveApplication"];
+    [self registerRoute:@"metagame.clanHandler.removeMember" withName:@"RemoveMember"];
+    [self registerRoute:@"metagame.clanHandler.updateClan" withName:@"UpdateClan"];
     
-    // Generic
-    [self registerRouteId:100 withName:@"Unknown"];
+    // TEAM
+    [self registerRoute:@"metagame.teamHandler.create" withName:@"CreateTeam"];
+    [self registerRoute:@"metagame.teamHandler.join" withName:@"JoinTeam"];
+    [self registerRoute:@"metagame.teamHandler.leave" withName:@"LeaveTeam"];
+    [self registerRoute:@"metagame.teamHandler.inviteFriend" withName:@"InviteFriend"];
+    [self registerRoute:@"metagame.teamHandler.acceptInvite" withName:@"AcceptInvite"];
+    [self registerRoute:@"metagame.teamHandler.rejectInvite" withName:@"RejectInvite"];
+    [self registerRoute:@"metagame.teamHandler.setStatusReady" withName:@"SetReady"];
+    [self registerRoute:@"metagame.teamHandler.changeChar" withName:@"TeamChangeChar"];
     
-    ZPLog(@"Registered %lu route mappings", (unsigned long)_routeMappings.count);
+    // RANKING
+    [self registerRoute:@"metagame.rankingHandler.getTop" withName:@"GetTopRanking"];
+    [self registerRoute:@"metagame.rankingHandler.getMembers" withName:@"GetMemberRanking"];
+    
+    // MISSION/EVENT
+    [self registerRoute:@"metagame.missionHandler.getMissions" withName:@"GetMissions"];
+    [self registerRoute:@"metagame.missionHandler.claim" withName:@"ClaimMission"];
+    [self registerRoute:@"metagame.missionHandler.claimStreak" withName:@"ClaimStreak"];
+    
+    // ADS
+    [self registerRoute:@"metagame.adsHandler.watchAd" withName:@"WatchAd"];
+    [self registerRoute:@"metagame.adsHandler.multiplyRewardsUsingAd" withName:@"MultiplyRewards"];
+    [self registerRoute:@"metagame.adsHandler.skipFreeCrateTimerUsingAd" withName:@"SkipTimer"];
+    
+    // BLAST (Mini-game)
+    [self registerRoute:@"metagame.blastHandler.flipSymbol" withName:@"BlastFlipSymbol"];
+    [self registerRoute:@"metagame.blastHandler.getBlasts" withName:@"GetBlasts"];
+    [self registerRoute:@"metagame.blastHandler.enterBoard" withName:@"BlastEnterBoard"];
+    [self registerRoute:@"metagame.blastHandler.exitBoard" withName:@"BlastExitBoard"];
+    
+    // TROPHY ROAD
+    [self registerRoute:@"metagame.trophyRoadHandler.claimReward" withName:@"ClaimTrophyRoad"];
+    [self registerRoute:@"metagame.trophyRoadHandler.claimSeasonalMasteryRoadReward" withName:@"ClaimMasteryReward"];
+    
+    // ACCOUNT
+    [self registerRoute:@"metagame.accountHandler.linkAccount" withName:@"LinkAccount"];
+    [self registerRoute:@"metagame.accountHandler.erasePlayerAccount" withName:@"EraseAccount"];
+    [self registerRoute:@"metagame.playerHandler.migrateAccount" withName:@"MigrateAccount"];
+    
+    // LIVE OPS
+    [self registerRoute:@"metagame.liveOpsSpinWheel.spinWheel" withName:@"SpinWheel"];
+    [self registerRoute:@"metagame.liveopsHandler.getLiveopsPromos" withName:@"GetLiveopsPromos"];
+    
+    // PIGGY BANK
+    [self registerRoute:@"metagame.piggyBankHandler.openPiggyBank" withName:@"OpenPiggyBank"];
+    [self registerRoute:@"metagame.piggyBankHandler.canOpenPiggyBank" withName:@"CanOpenPiggyBank"];
+    
+    // SUBSCRIPTION
+    [self registerRoute:@"metagame.subscriptionHandler.getPlayerSubscription" withName:@"GetSubscription"];
+    [self registerRoute:@"metagame.subscriptionHandler.claim" withName:@"ClaimSubscription"];
+    
+    // BATTLE PASS
+    [self registerRoute:@"metagame.battlePassRoadHandler.claimFreeBattlePassRoad" withName:@"ClaimBattlePassFree"];
+    [self registerRoute:@"metagame.battlePassRoadHandler.claimPremiumBattlePassRoad" withName:@"ClaimBattlePassPremium"];
+    
+    // CHEATS (DEV ONLY)
+    [self registerRoute:@"metagame.cheatsHandler.giveCurrencies" withName:@"CHEAT_GiveCurrencies"];
+    [self registerRoute:@"metagame.cheatsHandler.giveSoftCurrency" withName:@"CHEAT_GiveCoins"];
+    [self registerRoute:@"metagame.cheatsHandler.giveHardCurrency" withName:@"CHEAT_GiveGems"];
+    [self registerRoute:@"metagame.cheatsHandler.giveEnergy" withName:@"CHEAT_GiveEnergy"];
+    [self registerRoute:@"metagame.cheatsHandler.giveTrophies" withName:@"CHEAT_GiveTrophies"];
+    [self registerRoute:@"metagame.cheatsHandler.unlockAllCharacters" withName:@"CHEAT_UnlockAllChars"];
+    [self registerRoute:@"metagame.cheatsHandler.unlockAllSkins" withName:@"CHEAT_UnlockAllSkins"];
+    [self registerRoute:@"metagame.cheatsHandler.unlockAllItems" withName:@"CHEAT_UnlockAllItems"];
+    [self registerRoute:@"metagame.cheatsHandler.testFindMatch" withName:@"CHEAT_TestFindMatch"];
+    
+    ZPLog(@"Registered %lu routes", (unsigned long)_routeMappings.count);
 }
 
-- (void)registerRouteId:(uint16_t)routeId withName:(NSString *)name {
-    _routeMappings[@(routeId)] = name;
-}
-
-- (NSString *)routeNameForId:(uint16_t)routeId {
-    return _routeMappings[@(routeId)] ?: [NSString stringWithFormat:@"Route_%d", routeId];
-}
-
-#pragma mark - Data Detection
-
-- (BOOL)isLikelyProtobufData:(NSData *)data direction:(ZPProtoDirection)direction {
-    if (!data || data.length < 4) return NO;
-    
-    const uint8_t *bytes = data.bytes;
-    
-    // Pitaya packet format:
-    // [type:2bytes][route_id:2bytes][protobuf_data...]
-    
-    // Check first 4 bytes look like a valid header
-    // Type should be 0x01 (request), 0x02 (response), or 0x03 (notify)
-    
-    uint8_t type = bytes[0];
-    if (type > 0x05) return NO;  // Invalid type
-    
-    // Route ID should be reasonable
-    uint16_t routeId = (bytes[2] << 8) | bytes[3];
-    if (routeId == 0 && data.length > 4) {
-        // Try other byte order
-        routeId = (bytes[3] << 8) | bytes[2];
+- (void)registerRoute:(NSString *)route withName:(NSString *)name {
+    if (route && name) {
+        _routeMappings[route] = name;
     }
-    
-    // Check if protobuf data starts after header
-    if (data.length > 4) {
-        uint8_t protoStart = bytes[4];
-        // Protobuf starts with tag (0-10 typically for small fields)
-        // or varint for string length
-        if (protoStart > 0x80) {
-            // Could be compressed, skip
-            return YES;
-        }
-    }
-    
-    return YES;  // Assume it's protobuf if it looks like a packet
 }
 
-#pragma mark - Parse Message
+- (NSString *)shortNameForRoute:(NSString *)route {
+    return _routeMappings[route] ?: [route componentsSeparatedByString:@"."].lastObject;
+}
 
-- (void)parseAndLogMessage:(ZPProtoMessageInfo *)msg {
-    if (!msg.rawData || msg.rawData.length < 4) return;
-    
-    const uint8_t *bytes = msg.rawData.bytes;
-    
-    // Parse Pitaya header
-    msg.routeType = bytes[0];
-    msg.routeId = (bytes[2] << 8) | bytes[3];
-    
-    // Get route name
-    msg.messageName = [self routeNameForId:msg.routeId];
-    
-    // Extract payload (everything after header)
-    if (msg.rawData.length > 4) {
-        msg.payload = [msg.rawData subdataWithRange:NSMakeRange(4, msg.rawData.length - 4)];
-    }
-    
-    // Try to parse protobuf
-    [self tryParseProtobuf:msg];
-    
-    // Store message
+#pragma mark - Message Capture
+
+- (void)captureMessage:(ZPProtoMessageInfo *)msg {
     [_mutableMessages addObject:msg];
     
-    // Keep only last 1000 messages
     if (_mutableMessages.count > 1000) {
         [_mutableMessages removeObjectsInRange:NSMakeRange(0, _mutableMessages.count - 1000)];
     }
     
-    // Log to console
     NSString *dirStr = msg.direction == ZPProtoDirectionSend ? @"📤 SEND" : @"📥 RECV";
-    ZPLog(@"%@ Route:%@ (%d) Size:%lu", 
-          dirStr, msg.messageName, msg.routeId, 
+    NSString *shortName = msg.messageName ?: msg.route;
+    
+    ZPLog(@"%@ %@ route=%@ size=%lu", 
+          dirStr, shortName, msg.route,
           (unsigned long)(msg.payload ? msg.payload.length : 0));
     
-    // Fire callback
-    if (_onMessageCaptured) {
-        _onMessageCaptured(msg);
-    }
-}
-
-- (void)tryParseProtobuf:(ZPProtoMessageInfo *)msg {
-    if (!msg.payload || msg.payload.length == 0) return;
-    
-    NSMutableDictionary *parsed = [NSMutableDictionary dictionary];
-    const uint8_t *bytes = msg.payload.bytes;
-    NSUInteger offset = 0;
-    NSUInteger length = msg.payload.length;
-    
-    while (offset < length) {
-        uint8_t fieldTag = bytes[offset];
-        offset++;
-        
-        // Decode field number and wire type
-        uint32_t fieldNumber = fieldTag >> 3;
-        uint32_t wireType = fieldTag & 0x07;
-        
-        NSString *fieldName = [NSString stringWithFormat:@"field_%d", fieldNumber];
-        
-        switch (wireType) {
-            case 0: {  // Varint
-                uint64_t value = 0;
-                uint8_t shift = 0;
-                while (offset < length) {
-                    uint8_t b = bytes[offset++];
-                    value |= (b & 0x7F) << shift;
-                    if ((b & 0x80) == 0) break;
-                    shift += 7;
-                }
-                parsed[fieldName] = @(value);
-                break;
-            }
-            case 1: {  // 64-bit
-                if (offset + 8 <= length) {
-                    uint64_t value = 0;
-                    for (int i = 0; i < 8; i++) {
-                        value = (value << 8) | bytes[offset + i];
-                    }
-                    parsed[fieldName] = @(value);
-                    offset += 8;
-                }
-                break;
-            }
-            case 2: {  // Length-delimited (string, bytes, etc.)
-                uint32_t len = 0;
-                uint8_t shift = 0;
-                NSUInteger lenOffset = offset;
-                while (lenOffset < length) {
-                    uint8_t b = bytes[lenOffset++];
-                    len |= (b & 0x7F) << shift;
-                    if ((b & 0x80) == 0) break;
-                    shift += 7;
-                }
-                offset = lenOffset;
-                
-                if (offset + len <= length) {
-                    NSData *fieldData = [msg.payload subdataWithRange:NSMakeRange(offset, len)];
-                    
-                    // Try to decode as string
-                    NSString *str = [[NSString alloc] initWithData:fieldData encoding:NSUTF8StringEncoding];
-                    if (str) {
-                        parsed[fieldName] = str;
-                    } else {
-                        // Store as hex
-                        NSMutableString *hex = [NSMutableString string];
-                        const uint8_t *hexBytes = fieldData.bytes;
-                        for (NSUInteger i = 0; i < fieldData.length && i < 100; i++) {
-                            [hex appendFormat:@"%02X", hexBytes[i]];
-                        }
-                        if (fieldData.length > 100) [hex appendString:@"..."];
-                        parsed[fieldName] = [NSString stringWithFormat:@"<%lu bytes: %@>", 
-                                             (unsigned long)fieldData.length, hex];
-                    }
-                    offset += len;
-                }
-                break;
-            }
-            case 5: {  // 32-bit
-                if (offset + 4 <= length) {
-                    uint32_t value = 0;
-                    for (int i = 0; i < 4; i++) {
-                        value = (value << 8) | bytes[offset + i];
-                    }
-                    parsed[fieldName] = @(value);
-                    offset += 4;
-                }
-                break;
-            }
-            default:
-                // Unknown wire type, skip to next byte
-                if (offset < length) offset++;
-                break;
+    if (msg.parsedData && msg.parsedData.count > 0) {
+        NSArray *keys = [msg.parsedData.allKeys sortedArrayUsingSelector:@selector(compare:)];
+        for (NSString *key in keys) {
+            id value = msg.parsedData[key];
+            ZPLog(@"    %@ = %@", key, value);
         }
     }
     
-    if (parsed.count > 0) {
-        msg.parsedData = parsed;
+    if (_onMessageCaptured) {
+        _onMessageCaptured(msg);
     }
 }
 
 #pragma mark - Hook Installation
 
 - (void)installHooks {
-    ZPLog(@"Installing ProtoInterceptor hooks...");
+    ZPLog(@"Installing ProtoInterceptor hooks (fishhook)...");
     
-    int rebound = 0;
     struct rebinding rebindings[4];
+    rebindings[0] = (struct rebinding){"send", hooked_send, (void **)&original_send};
+    rebindings[1] = (struct rebinding){"recv", hooked_recv, (void **)&original_recv};
+    rebindings[2] = (struct rebinding){"write", hooked_write, (void **)&original_write};
+    rebindings[3] = (struct rebinding){"read", hooked_read, (void **)&original_read};
     
-    // Hook send
-    rebindings[rebound].name = "send";
-    rebindings[rebound].replacement = hooked_send;
-    rebindings[rebound].replaced = (void **)&original_send;
-    rebound++;
+    rebind_symbols(rebindings, 4);
     
-    // Hook recv
-    rebindings[rebound].name = "recv";
-    rebindings[rebound].replacement = hooked_recv;
-    rebindings[rebound].replaced = (void **)&original_recv;
-    rebound++;
-    
-    // Hook write
-    rebindings[rebound].name = "write";
-    rebindings[rebound].replacement = hooked_write;
-    rebindings[rebound].replaced = (void **)&original_write;
-    rebound++;
-    
-    // Hook read
-    rebindings[rebound].name = "read";
-    rebindings[rebound].replacement = hooked_read;
-    rebindings[rebound].replaced = (void **)&original_read;
-    rebound++;
-    
-    rebind_symbols(rebindings, rebound);
-    
-    ZPLog(@"ProtoInterceptor hooks installed! Capturing socket traffic...");
+    ZPLog(@"ProtoInterceptor hooks installed! Capturing %lu routes...", (unsigned long)_routeMappings.count);
 }
 
 - (void)uninstallHooks {
-    ZPLog(@"Uninstalling ProtoInterceptor hooks...");
-    // Note: fishhook doesn't support uninstall, but we disable via _enabled flag
+    ZPLog(@"ProtoInterceptor hooks disabled");
     _enabled = NO;
 }
 
