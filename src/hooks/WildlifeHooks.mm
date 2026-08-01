@@ -2,8 +2,8 @@
 //  WildlifeHooks.mm
 //  ZoobaProto
 //
-//  Complete Hook Implementations for Wildlife Studios
-//  Based on reverse-engineered Zooba code
+//  Hooks for Wildlife Studios classes
+//  Based on real classes from Zooba IPA v6.24.2
 //
 
 #import "WildlifeHooks.h"
@@ -26,28 +26,22 @@ static NSMutableSet *g_processedRequests = nil;
 
 + (void)install {
     ZPLog(@"===========================================");
-    ZPLog(@"Installing Wildlife hooks (COMPLETE)...");
+    ZPLog(@"Installing Wildlife hooks...");
     ZPLog(@"===========================================");
     
-    // 1. Hook Account Management
-    [self hookAccountManager];
+    // 1. Hook PlatformAccountManager (EXISTS in IPA!)
+    [self hookPlatformAccountManager];
     
-    // 2. Hook Platform Networking
-    [self hookPlatformNetworking];
-    
-    // 3. Hook PlayerAccount properties
-    [self hookPlayerAccount];
-    
-    // 4. Hook NSUserDefaults
+    // 2. Hook NSUserDefaults
     [self hookNSUserDefaults];
     
-    // 5. Hook Unity PlayerPrefs
+    // 3. Hook Unity PlayerPrefs
     [self hookUnityPlayerPrefs];
     
-    // 6. Hook NSURLSession
+    // 4. Hook NSURLSession
     [self hookNSURLSession];
     
-    // 7. Hook Keychain
+    // 5. Hook Keychain (basic)
     [self hookKeychain];
     
     ZPLog(@"===========================================");
@@ -55,83 +49,64 @@ static NSMutableSet *g_processedRequests = nil;
     ZPLog(@"===========================================");
 }
 
-#pragma mark - 1. Account Management Hook
+#pragma mark - 1. PlatformAccountManager Hook
 
-+ (void)hookAccountManager {
-    ZPLog(@"Hooking Account Management...");
++ (void)hookPlatformAccountManager {
+    ZPLog(@"Hooking PlatformAccountManager...");
     
-    // Try to find PlatformAccountManager
+    // This class EXISTS in IPA: Wildlife.Platform.Account.PlatformAccountManager
     Class accountManagerClass = NSClassFromString(@"PlatformAccountManager");
-    if (!accountManagerClass) {
-        accountManagerClass = NSClassFromString(@"AccountManager");
-    }
-    if (!accountManagerClass) {
-        accountManagerClass = NSClassFromString(@"WLAuthManager");
-    }
     
     if (accountManagerClass) {
-        ZPLog(@"Found AccountManager: %@", NSStringFromClass(accountManagerClass));
+        ZPLog(@"Found PlatformAccountManager: %@", NSStringFromClass(accountManagerClass));
         [self hookAccountManagerClass:accountManagerClass];
     } else {
-        ZPLog(@"AccountManager class not found - will try runtime discovery");
-        [self discoverAndHookAccountClasses];
+        ZPLog(@"PlatformAccountManager not found - trying runtime discovery");
+        [self discoverAccountClasses];
     }
 }
 
 + (void)hookAccountManagerClass:(Class)cls {
-    // Hook: get_Account property
+    // Hook: account property
     SEL accountSEL = NSSelectorFromString(@"account");
     if ([cls instancesRespondToSelector:accountSEL]) {
         [self hookAccountGetter:cls];
         ZPLog(@"  Hooked: account getter");
     }
     
-    // Hook: SecurityToken property
-    SEL tokenSEL = NSSelectorFromString(@"securityToken");
-    if ([cls instancesRespondToSelector:tokenSEL]) {
-        [self hookSecurityTokenGetter:cls];
-        ZPLog(@"  Hooked: securityToken getter");
+    // Hook: CreateOrAuthenticate method
+    SEL createAuthSEL = NSSelectorFromString(@"createOrAuthenticateWithCompletionHandler:");
+    if ([cls instancesRespondToSelector:createAuthSEL]) {
+        [self hookCreateOrAuthenticate:cls];
+        ZPLog(@"  Hooked: createOrAuthenticateWithCompletionHandler:");
     }
     
     // Hook: Authenticate method
-    SEL authSEL = NSSelectorFromString(@"authenticate");
+    SEL authSEL = NSSelectorFromString(@"authenticateWithCompletionHandler:");
     if ([cls instancesRespondToSelector:authSEL]) {
-        [self hookAuthenticateMethod:cls];
-        ZPLog(@"  Hooked: authenticate method");
+        [self hookAuthenticate:cls];
+        ZPLog(@"  Hooked: authenticateWithCompletionHandler:");
     }
     
-    // Hook: LoadCurrentAccount method
-    SEL loadSEL = NSSelectorFromString(@"loadCurrentAccount");
-    if ([cls instancesRespondToSelector:loadSEL]) {
-        [self hookLoadCurrentAccount:cls];
-        ZPLog(@"  Hooked: loadCurrentAccount");
-    }
-    
-    // Hook: CreateOrAuthenticate method
-    SEL createAuthSEL = NSSelectorFromString(@"createOrAuthenticate");
-    if ([cls instancesRespondToSelector:createAuthSEL]) {
-        [self hookCreateOrAuthenticate:cls];
-        ZPLog(@"  Hooked: createOrAuthenticate");
+    // Hook: FetchAccount method
+    SEL fetchSEL = NSSelectorFromString(@"fetchAccountWithCompletionHandler:");
+    if ([cls instancesRespondToSelector:fetchSEL]) {
+        [self hookFetchAccount:cls];
+        ZPLog(@"  Hooked: fetchAccountWithCompletionHandler:");
     }
 }
 
 + (void)hookAccountGetter:(Class)cls {
     SEL originalSEL = NSSelectorFromString(@"account");
-    SEL swizzledSEL = NSSelectorFromString(@"zp_account");
-    
     Method originalMethod = class_getInstanceMethod(cls, originalSEL);
     if (!originalMethod) return;
     
     IMP originalIMP = method_getImplementation(originalMethod);
-    
-    // Create swizzled implementation
     __block IMP original = originalIMP;
     
     IMP swizzledIMP = imp_implementationWithBlock(^(id self) {
-        // Call original
         id account = ((id (*)(id, SEL))original)(self, originalSEL);
         
-        // Hook the returned account
         if (account) {
             [self extractTokensFromAccount:account];
         }
@@ -143,593 +118,149 @@ static NSMutableSet *g_processedRequests = nil;
     ZPLog(@"    Swizzled: account getter");
 }
 
-+ (void)hookSecurityTokenGetter:(Class)cls {
-    SEL originalSEL = NSSelectorFromString(@"securityToken");
-    SEL swizzledSEL = NSSelectorFromString(@"zp_securityToken");
++ (void)hookCreateOrAuthenticate:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"createOrAuthenticateWithCompletionHandler:");
+    if (![cls instancesRespondToSelector:originalSEL]) return;
     
     Method originalMethod = class_getInstanceMethod(cls, originalSEL);
     if (!originalMethod) return;
     
     IMP originalIMP = method_getImplementation(originalMethod);
-    
     __block IMP original = originalIMP;
     
-    IMP swizzledIMP = imp_implementationWithBlock(^(id self) {
-        id token = ((id (*)(id, SEL))original)(self, originalSEL);
-        
-        if (token && [token isKindOfClass:[NSString class]] && [(NSString *)token length] > 10) {
-            ZPTokenFound([NSString stringWithFormat:@"SecurityToken: %@...", [(NSString *)token substringToIndex:MIN(50, [(NSString *)token length])]]);
-            g_capturedTokens[@"securityToken"] = token;
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
-                                                              object:nil 
-                                                            userInfo:@{@"token": token, @"source": @"SecurityToken"}];
-        }
-        
-        return token;
+    IMP swizzledIMP = imp_implementationWithBlock(^(id self, id completionHandler) {
+        ZPLog(@"    createOrAuthenticateWithCompletionHandler: called");
+        ((void (*)(id, SEL, id))original)(self, originalSEL, completionHandler);
     });
     
     method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"    Swizzled: securityToken getter");
+    ZPLog(@"    Swizzled: createOrAuthenticateWithCompletionHandler:");
 }
 
-+ (void)hookAuthenticateMethod:(Class)cls {
-    SEL originalSEL = NSSelectorFromString(@"authenticate");
++ (void)hookAuthenticate:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"authenticateWithCompletionHandler:");
     if (![cls instancesRespondToSelector:originalSEL]) return;
     
-    // Hook authenticate method
-    [Swizzler hookMethod:cls selector:originalSEL 
-             beforeBlock:^(id self, NSInvocation *inv) {
-        ZPLog(@"    Authenticate called");
-    } afterBlock:^(id self, NSInvocation *inv, id returnValue) {
-        ZPLog(@"    Authenticate completed");
-    }];
+    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
+    if (!originalMethod) return;
+    
+    IMP originalIMP = method_getImplementation(originalMethod);
+    __block IMP original = originalIMP;
+    
+    IMP swizzledIMP = imp_implementationWithBlock(^(id self, id completionHandler) {
+        ZPLog(@"    authenticateWithCompletionHandler: called");
+        ((void (*)(id, SEL, id))original)(self, originalSEL, completionHandler);
+    });
+    
+    method_setImplementation(originalMethod, swizzledIMP);
+    ZPLog(@"    Swizzled: authenticateWithCompletionHandler:");
 }
 
-+ (void)hookLoadCurrentAccount:(Class)cls {
-    SEL originalSEL = NSSelectorFromString(@"loadCurrentAccount");
++ (void)hookFetchAccount:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"fetchAccountWithCompletionHandler:");
     if (![cls instancesRespondToSelector:originalSEL]) return;
     
-    [Swizzler hookMethod:cls selector:originalSEL 
-             beforeBlock:^(id self, NSInvocation *inv) {
-        ZPLog(@"    loadCurrentAccount called");
-    } afterBlock:^(id self, NSInvocation *inv, id returnValue) {
-        ZPLog(@"    loadCurrentAccount completed");
-        // Try to extract tokens after load
-        if ([self respondsToSelector:NSSelectorFromString(@"account")]) {
-            id account = [self performSelector:NSSelectorFromString(@"account")];
-            if (account) {
-                [self extractTokensFromAccount:account];
-            }
-        }
-    }];
-}
-
-+ (void)hookCreateOrAuthenticate:(Class)cls {
-    SEL originalSEL = NSSelectorFromString(@"createOrAuthenticate");
-    if (![cls instancesRespondToSelector:originalSEL]) return;
+    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
+    if (!originalMethod) return;
     
-    [Swizzler hookMethod:cls selector:originalSEL 
-             beforeBlock:^(id self, NSInvocation *inv) {
-        ZPLog(@"    createOrAuthenticate called");
-    } afterBlock:^(id self, NSInvocation *inv, id returnValue) {
-        ZPLog(@"    createOrAuthenticate completed");
-    }];
+    IMP originalIMP = method_getImplementation(originalMethod);
+    __block IMP original = originalIMP;
+    
+    IMP swizzledIMP = imp_implementationWithBlock(^(id self, id completionHandler) {
+        ZPLog(@"    fetchAccountWithCompletionHandler: called");
+        ((void (*)(id, SEL, id))original)(self, originalSEL, completionHandler);
+    });
+    
+    method_setImplementation(originalMethod, swizzledIMP);
+    ZPLog(@"    Swizzled: fetchAccountWithCompletionHandler:");
 }
 
 + (void)extractTokensFromAccount:(id)account {
     if (!account) return;
     
     // Try various token properties
-    NSArray *tokenProps = @[@"securityToken", @"token", @"accessToken", @"authToken", @"bearerToken"];
+    NSArray *tokenProps = @[@"token", @"accessToken", @"authToken", @"bearerToken", @"idToken"];
     
     for (NSString *prop in tokenProps) {
         SEL sel = NSSelectorFromString(prop);
         if ([account respondsToSelector:sel]) {
-            
             __weak id token = [account performSelector:sel];
             
             if (token && [token isKindOfClass:[NSString class]] && [(NSString *)token length] > 10) {
                 NSString *tokenStr = (NSString *)token;
-                ZPTokenFound([NSString stringWithFormat:@"%@: %@...", prop, [tokenStr substringToIndex:MIN(50, tokenStr.length)]]);
-                g_capturedTokens[prop] = tokenStr;
                 
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
-                                                                  object:nil 
-                                                                userInfo:@{@"token": tokenStr, @"source": prop}];
+                // Check if it's a JWT (starts with eyJ)
+                if ([tokenStr hasPrefix:@"eyJ"]) {
+                    ZPTokenFound([NSString stringWithFormat:@"JWT[%@]: %@...", prop, [tokenStr substringToIndex:MIN(50, tokenStr.length)]]);
+                    g_capturedTokens[[NSString stringWithFormat:@"account.%@", prop]] = tokenStr;
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
+                                                                      object:nil 
+                                                                    userInfo:@{@"token": tokenStr, @"source": prop}];
+                }
             }
         }
     }
     
-    // Try playerId
+    // Try to get playerId
     SEL playerIdSEL = NSSelectorFromString(@"playerId");
     if ([account respondsToSelector:playerIdSEL]) {
         id playerId = [account performSelector:playerIdSEL];
-        if (playerId) {
-            ZPLog(@"    Player ID: %@", playerId);
-            g_capturedTokens[@"playerId"] = playerId;
-        }
-    }
-    
-    // Try Id
-    SEL idSEL = NSSelectorFromString(@"id");
-    if ([account respondsToSelector:idSEL]) {
-        id accountId = [account performSelector:idSEL];
-        if (accountId) {
-            ZPLog(@"    Account ID: %@", accountId);
-            g_capturedTokens[@"accountId"] = accountId;
+        if (playerId && [playerId isKindOfClass:[NSString class]]) {
+            ZPLog(@"    PlayerId: %@", [(NSString *)playerId substringToIndex:MIN(20, [(NSString *)playerId length])]);
+            g_capturedTokens[@"account.playerId"] = playerId;
         }
     }
 }
 
-+ (void)discoverAndHookAccountClasses {
-    int classCount = objc_getClassList(NULL, 0);
-    if (classCount == 0) return;
++ (void)discoverAccountClasses {
+    ZPLog(@"Discovering account classes at runtime...");
     
-    Class *classes = (Class *)malloc(sizeof(Class) * classCount);
-    objc_getClassList(classes, classCount);
+    // Try common patterns
+    NSArray *classPatterns = @[
+        @"PlatformAccountManager",
+        @"AccountManager",
+        @"WLAuthManager",
+        @"WildlifeAccount",
+        @"PlayerAccount"
+    ];
     
-    for (int i = 0; i < classCount; i++) {
-        Class cls = classes[i];
-        NSString *name = NSStringFromClass(cls);
-        
-        // Look for account-related classes
-        if ([name containsString:@"Account"] || [name containsString:@"Auth"] || 
-            [name containsString:@"Player"] || [name containsString:@"WL"]) {
-            
-            unsigned int methodCount = 0;
-            Method *methods = class_copyMethodList(cls, &methodCount);
-            
-            BOOL hasToken = NO;
-            BOOL hasAccount = NO;
-            
-            for (unsigned int j = 0; j < methodCount; j++) {
-                NSString *methodName = NSStringFromSelector(method_getName(methods[j]));
-                if ([methodName containsString:@"Token"] || [methodName containsString:@"token"]) {
-                    hasToken = YES;
-                }
-                if ([methodName containsString:@"Account"] || [methodName containsString:@"account"]) {
-                    hasAccount = YES;
-                }
-            }
-            
-            free(methods);
-            
-            if (hasToken || hasAccount) {
-                ZPLog(@"Discovered account class: %@", name);
-                [self hookAccountManagerClass:cls];
-            }
-        }
-    }
-    
-    free(classes);
-}
-
-#pragma mark - 2. Platform Networking Hook
-
-+ (void)hookPlatformNetworking {
-    ZPLog(@"Hooking Platform Networking...");
-    
-    Class networkClass = NSClassFromString(@"PlatformNetworkingIOSBinding");
-    if (!networkClass) {
-        networkClass = NSClassFromString(@"WLNetworkClient");
-    }
-    if (!networkClass) {
-        networkClass = NSClassFromString(@"PlatformNetworking");
-    }
-    
-    if (networkClass) {
-        ZPLog(@"Found Network class: %@", NSStringFromClass(networkClass));
-        [self hookPlatformNetworkingClass:networkClass];
-    } else {
-        ZPLog(@"Network class not found - will use NSURLSession hook instead");
-    }
-}
-
-+ (void)hookPlatformNetworkingClass:(Class)cls {
-    // Hook: SendRequest methods
-    unsigned int methodCount = 0;
-    Method *methods = class_copyMethodList(cls, &methodCount);
-    
-    for (unsigned int i = 0; i < methodCount; i++) {
-        Method method = methods[i];
-        NSString *methodName = NSStringFromSelector(method_getName(method));
-        
-        // Hook SendRequest variants
-        if ([methodName containsString:@"SendRequest"]) {
-            ZPLog(@"  Hooking: %@", methodName);
-            [self hookSendRequest:cls methodName:methodName];
-        }
-        
-        // Hook SetHeader variants
-        if ([methodName containsString:@"SetHeader"]) {
-            ZPLog(@"  Hooking: %@", methodName);
-            [self hookSetHeader:cls methodName:methodName];
-        }
-        
-        // Hook GetHeaders
-        if ([methodName containsString:@"GetHeaders"] || [methodName containsString:@"PlatformHeader"]) {
-            ZPLog(@"  Hooking: %@", methodName);
-            [self hookGetHeaders:cls methodName:methodName];
-        }
-    }
-    
-    free(methods);
-}
-
-+ (void)hookSendRequest:(Class)cls methodName:(NSString *)methodName {
-    SEL originalSEL = NSSelectorFromString(methodName);
-    if (![cls instancesRespondToSelector:originalSEL]) return;
-    
-    [Swizzler hookMethod:cls selector:originalSEL 
-             beforeBlock:^(id self, NSInvocation *inv) {
-        
-        // Log the request
-        ZPLog(@"🚀 SEND REQUEST: %@", methodName);
-        
-        // Try to extract request info from invocation
-        NSMethodSignature *sig = [inv methodSignature];
-        NSUInteger argCount = [sig numberOfArguments];
-        
-        for (NSUInteger i = 0; i < argCount; i++) {
-            const char *argType = [sig getArgumentTypeAtIndex:i];
-            if (argType[0] == '@') { // Object
-                __unsafe_unretained id arg = nil;
-                [inv getArgument:&arg atIndex:i];
-                if (arg) {
-                    ZPLog(@"  Arg[%lu]: %@", (unsigned long)i, [arg class]);
-                    
-                    // Try to extract URL
-                    if ([arg respondsToSelector:@selector(URL)]) {
-                        ZPLog(@"  URL: %@", [arg performSelector:@selector(URL)]);
-                    }
-                    
-                    // Try to extract headers
-                    if ([arg respondsToSelector:@selector(allHTTPHeaderFields)]) {
-                        NSDictionary *headers = [arg performSelector:@selector(allHTTPHeaderFields)];
-                        [self checkHeadersForTokens:headers];
-                    }
-                }
-            }
-        }
-        
-    } afterBlock:^(id self, NSInvocation *inv, id returnValue) {
-        ZPLog(@"  Request completed");
-    }];
-}
-
-+ (void)hookSetHeader:(Class)cls methodName:(NSString *)methodName {
-    SEL originalSEL = NSSelectorFromString(methodName);
-    if (![cls instancesRespondToSelector:originalSEL]) return;
-    
-    [Swizzler hookMethod:cls selector:originalSEL 
-             beforeBlock:^(id self, NSInvocation *inv) {
-        
-        NSMethodSignature *sig = [inv methodSignature];
-        
-        // Extract header key and value
-        if ([sig numberOfArguments] >= 3) {
-            __unsafe_unretained id key = nil;
-            __unsafe_unretained id value = nil;
-            [inv getArgument:&key atIndex:2];
-            [inv getArgument:&value atIndex:3];
-            
-            if (key && value) {
-                ZPLog(@"📋 SET HEADER: %@ = %@", key, value);
-                
-                // Check for auth headers
-                NSString *keyStr = [key isKindOfClass:[NSString class]] ? (NSString *)key : @"";
-                NSString *valueStr = [value isKindOfClass:[NSString class]] ? (NSString *)value : @"";
-                
-                if ([keyStr.lowercaseString containsString:@"token"] || 
-                    [keyStr.lowercaseString containsString:@"auth"]) {
-                    ZPTokenFound([NSString stringWithFormat:@"Header %@: %@...", keyStr, [valueStr substringToIndex:MIN(50, valueStr.length)]]);
-                    g_capturedTokens[keyStr] = valueStr;
-                }
-            }
-        }
-        
-    } afterBlock:nil];
-}
-
-+ (void)hookGetHeaders:(Class)cls methodName:(NSString *)methodName {
-    SEL originalSEL = NSSelectorFromString(methodName);
-    if (![cls instancesRespondToSelector:originalSEL]) return;
-    
-    [Swizzler hookMethod:cls selector:originalSEL 
-             beforeBlock:nil 
-             afterBlock:^(id self, NSInvocation *inv, id returnValue) {
-        
-        if (returnValue && [returnValue isKindOfClass:[NSDictionary class]]) {
-            NSDictionary *headers = (NSDictionary *)returnValue;
-            ZPLog(@"📋 GET HEADERS: %lu items", (unsigned long)headers.count);
-            [self checkHeadersForTokens:headers];
-        }
-    }];
-}
-
-+ (void)checkHeadersForTokens:(NSDictionary *)headers {
-    if (!headers || headers.count == 0) return;
-    
-    NSArray *authHeaders = @[@"Authorization", @"authorization", @"X-Security-Token", 
-                              @"X-Auth-Token", @"X-Access-Token", @"Token", @"Bearer"];
-    
-    for (NSString *key in headers) {
-        for (NSString *authKey in authHeaders) {
-            if ([key.lowercaseString isEqualToString:authKey.lowercaseString]) {
-                NSString *value = headers[key];
-                if (value && value.length > 0) {
-                    ZPTokenFound([NSString stringWithFormat:@"Header %@: %@...", key, [value substringToIndex:MIN(50, value.length)]]);
-                    g_capturedTokens[key] = value;
-                    
-                    // Check if it's a Bearer token
-                    if ([value.lowercaseString hasPrefix:@"bearer "]) {
-                        NSString *token = [value substringFromIndex:7];
-                        [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
-                                                                          object:nil 
-                                                                        userInfo:@{@"token": value, @"source": @"Authorization Header"}];
-                    } else if ([value hasPrefix:@"eyJ"]) {
-                        // JWT
-                        [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
-                                                                          object:nil 
-                                                                        userInfo:@{@"token": value, @"source": @"JWT Header"}];
-                    }
-                }
-            }
+    for (NSString *pattern in classPatterns) {
+        Class cls = NSClassFromString(pattern);
+        if (cls) {
+            ZPLog(@"  Found: %@", pattern);
+            [self hookAccountManagerClass:cls];
         }
     }
 }
 
-#pragma mark - 3. PlayerAccount Hook
-
-+ (void)hookPlayerAccount {
-    ZPLog(@"Hooking PlayerAccount...");
-    
-    Class playerClass = NSClassFromString(@"PlayerAccount");
-    if (!playerClass) {
-        playerClass = NSClassFromString(@"PlatformPlayer");
-    }
-    
-    if (playerClass) {
-        ZPLog(@"Found PlayerAccount: %@", NSStringFromClass(playerClass));
-        [self hookPlayerAccountClass:playerClass];
-    }
-}
-
-+ (void)hookPlayerAccountClass:(Class)cls {
-    // Hook all getter methods
-    unsigned int methodCount = 0;
-    Method *methods = class_copyMethodList(cls, &methodCount);
-    
-    for (unsigned int i = 0; i < methodCount; i++) {
-        Method method = methods[i];
-        NSString *methodName = NSStringFromSelector(method_getName(method));
-        
-        // Only hook property getters (get_XXX)
-        if ([methodName hasPrefix:@"get_"] || 
-            ([methodName isEqualToString:@"securityToken"] ||
-             [methodName isEqualToString:@"token"] ||
-             [methodName isEqualToString:@"id"] ||
-             [methodName isEqualToString:@"Id"] ||
-             [methodName isEqualToString:@"playerId"] ||
-             [methodName isEqualToString:@"playerID"])) {
-            
-            [self hookPlayerPropertyGetter:cls methodName:methodName];
-        }
-    }
-    
-    free(methods);
-}
-
-+ (void)hookPlayerPropertyGetter:(Class)cls methodName:(NSString *)methodName {
-    SEL originalSEL = NSSelectorFromString(methodName);
-    if (!originalSEL) return;
-    
-    if (![cls instancesRespondToSelector:originalSEL]) return;
-    
-    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
-    if (!originalMethod) return;
-    
-    IMP originalIMP = method_getImplementation(originalMethod);
-    __block IMP original = originalIMP;
-    
-    IMP swizzledIMP = imp_implementationWithBlock(^(id self) {
-        id value = ((id (*)(id, SEL))original)(self, originalSEL);
-        
-        if (value) {
-            BOOL isToken = [methodName containsString:@"Token"] || 
-                           [methodName containsString:@"token"] ||
-                           [methodName containsString:@"Security"];
-            
-            if (isToken && [value isKindOfClass:[NSString class]] && [(NSString *)value length] > 10) {
-                ZPTokenFound([NSString stringWithFormat:@"PlayerAccount.%@: %@...", 
-                            methodName, [(NSString *)value substringToIndex:MIN(50, [(NSString *)value length])]]);
-                g_capturedTokens[methodName] = value;
-            } else {
-                ZPLog(@"📋 PlayerAccount.%@: %@", methodName, value);
-                g_capturedTokens[methodName] = value;
-            }
-        }
-        
-        return value;
-    });
-    
-    method_setImplementation(originalMethod, swizzledIMP);
-}
-
-#pragma mark - 4. NSUserDefaults Hook
+#pragma mark - 2. NSUserDefaults Hook
 
 + (void)hookNSUserDefaults {
     ZPLog(@"Hooking NSUserDefaults...");
     
     Class defaultsClass = [NSUserDefaults class];
     
+    // Hook: dictionaryForKey:
+    SEL dictSEL = NSSelectorFromString(@"dictionaryForKey:");
+    if ([defaultsClass instancesRespondToSelector:dictSEL]) {
+        [self hookNSUserDefaultsDictionary:defaultsClass];
+    }
+    
     // Hook: stringForKey:
-    SEL stringForKeySEL = @selector(stringForKey:);
-    if ([defaultsClass instancesRespondToSelector:stringForKeySEL]) {
-        [self hookNSUserDefaultsStringForKey];
+    SEL stringSEL = NSSelectorFromString(@"stringForKey:");
+    if ([defaultsClass instancesRespondToSelector:stringSEL]) {
+        [self hookNSUserDefaultsString:defaultsClass];
     }
     
-    // Hook: objectForKey:
-    SEL objectForKeySEL = @selector(objectForKey:);
-    [self hookNSUserDefaultsObjectForKey];
-    
-    // Hook: setObject:forKey:
-    SEL setObjectSEL = @selector(setObject:forKey:);
-    [self hookNSUserDefaultsSetObject];
-}
-
-+ (void)hookNSUserDefaultsStringForKey {
-    Class cls = [NSUserDefaults class];
-    SEL originalSEL = @selector(stringForKey:);
-    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
-    if (!originalMethod) return;
-    
-    IMP originalIMP = method_getImplementation(originalMethod);
-    __block IMP original = originalIMP;
-    
-    IMP swizzledIMP = imp_implementationWithBlock(^(NSUserDefaults *self, NSString *key) {
-        id value = ((id (*)(id, SEL, NSString *))original)(self, originalSEL, key);
-        
-        if (value && [value isKindOfClass:[NSString class]] && [(NSString *)value length] > 10) {
-            [self checkUserDefaultsValue:value forKey:key];
-        }
-        
-        return value;
-    });
-    
-    method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"  Swizzled: stringForKey:");
-}
-
-+ (void)hookNSUserDefaultsObjectForKey {
-    Class cls = [NSUserDefaults class];
-    SEL originalSEL = @selector(objectForKey:);
-    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
-    if (!originalMethod) return;
-    
-    IMP originalIMP = method_getImplementation(originalMethod);
-    __block IMP original = originalIMP;
-    
-    IMP swizzledIMP = imp_implementationWithBlock(^(NSUserDefaults *self, NSString *key) {
-        id value = ((id (*)(id, SEL, NSString *))original)(self, originalSEL, key);
-        
-        if (value) {
-            [self checkUserDefaultsValue:value forKey:key];
-        }
-        
-        return value;
-    });
-    
-    method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"  Swizzled: objectForKey:");
-}
-
-+ (void)hookNSUserDefaultsSetObject {
-    Class cls = [NSUserDefaults class];
-    SEL originalSEL = @selector(setObject:forKey:);
-    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
-    if (!originalMethod) return;
-    
-    IMP originalIMP = method_getImplementation(originalMethod);
-    __block IMP original = originalIMP;
-    
-    IMP swizzledIMP = imp_implementationWithBlock(^(NSUserDefaults *self, id object, NSString *key) {
-        // Check before setting
-        if (object) {
-            [self checkUserDefaultsValue:object forKey:key];
-        }
-        
-        ((void (*)(id, SEL, id, NSString *))original)(self, originalSEL, object, key);
-    });
-    
-    method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"  Swizzled: setObject:forKey:");
-}
-
-+ (void)checkUserDefaultsValue:(id)value forKey:(NSString *)key {
-    if (!key) return;
-    
-    // Check if key is interesting
-    NSArray *interestingKeys = @[@"token", @"Token", @"auth", @"Auth", @"security", @"Security",
-                                 @"account", @"Account", @"player", @"Player", @"session", @"Session",
-                                 @"wildlife", @"Wildlife", @"wl_", @"WL", @"Bearer", @"bearer"];
-    
-    BOOL isInteresting = NO;
-    for (NSString *pattern in interestingKeys) {
-        if ([key containsString:pattern]) {
-            isInteresting = YES;
-            break;
-        }
-    }
-    
-    if (!isInteresting) return;
-    
-    // Check if value looks like a token
-    NSString *valueStr = nil;
-    if ([value isKindOfClass:[NSString class]]) {
-        valueStr = (NSString *)value;
-    } else if ([value isKindOfClass:[NSData class]]) {
-        NSData *data = (NSData *)value;
-        valueStr = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    }
-    
-    if (valueStr && valueStr.length > 10) {
-        ZPLog(@"📋 NSUserDefaults[%@] = %@...", key, [valueStr substringToIndex:MIN(50, valueStr.length)]);
-        g_capturedTokens[key] = valueStr;
-        
-        // Check for JWT
-        if ([valueStr hasPrefix:@"eyJ"]) {
-            ZPTokenFound([NSString stringWithFormat:@"NSUserDefaults JWT[%@]: %@...", key, [valueStr substringToIndex:MIN(50, valueStr.length)]]);
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
-                                                              object:nil 
-                                                            userInfo:@{@"token": valueStr, @"source": @"NSUserDefaults"}];
-        }
+    // Hook: dataForKey:
+    SEL dataSEL = NSSelectorFromString(@"dataForKey:");
+    if ([defaultsClass instancesRespondToSelector:dataSEL]) {
+        [self hookNSUserDefaultsData:defaultsClass];
     }
 }
 
-#pragma mark - 5. Unity PlayerPrefs Hook
-
-+ (void)hookUnityPlayerPrefs {
-    ZPLog(@"Hooking Unity PlayerPrefs...");
-    
-    Class playerPrefsClass = NSClassFromString(@"PlayerPrefs");
-    if (!playerPrefsClass) {
-        playerPrefsClass = NSClassFromString(@"UnityPlayerPrefs");
-    }
-    
-    if (playerPrefsClass) {
-        ZPLog(@"Found PlayerPrefs: %@", NSStringFromClass(playerPrefsClass));
-        [self hookPlayerPrefsClass:playerPrefsClass];
-    }
-}
-
-+ (void)hookPlayerPrefsClass:(Class)cls {
-    // Hook GetString
-    SEL getStringSEL = NSSelectorFromString(@"getString:");
-    if ([cls respondsToSelector:getStringSEL]) {
-        [self hookPlayerPrefsGetString];
-    }
-    
-    // Hook SetString
-    SEL setStringSEL = NSSelectorFromString(@"setString:forKey:");
-    if ([cls respondsToSelector:setStringSEL]) {
-        [self hookPlayerPrefsSetString];
-    }
-    
-    // Hook GetStringForPlatform
-    SEL getForPlatformSEL = NSSelectorFromString(@"getStringForPlatform:withKey:");
-    if ([cls respondsToSelector:getForPlatformSEL]) {
-        [self hookPlayerPrefsGetForPlatform];
-    }
-}
-
-+ (void)hookPlayerPrefsGetString {
-    Class cls = [NSClassFromString(@"PlayerPrefs") ?: [NSClassFromString(@"UnityPlayerPrefs") class]];
-    if (!cls) return;
-    
-    SEL originalSEL = NSSelectorFromString(@"getString:");
-    if (!originalSEL) return;
-    
++ (void)hookNSUserDefaultsDictionary:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"dictionaryForKey:");
     Method originalMethod = class_getInstanceMethod(cls, originalSEL);
     if (!originalMethod) return;
     
@@ -737,7 +268,132 @@ static NSMutableSet *g_processedRequests = nil;
     __block IMP original = originalIMP;
     
     IMP swizzledIMP = imp_implementationWithBlock(^(id self, NSString *key) {
-        id value = ((id (*)(id, SEL, NSString *))original)(self, originalSEL, key);
+        id result = ((id (*)(id, SEL, NSString *))original)(self, originalSEL, key);
+        
+        if (result && [result isKindOfClass:[NSDictionary class]] && key) {
+            [self checkDefaultsValue:result forKey:key];
+        }
+        
+        return result;
+    });
+    
+    method_setImplementation(originalMethod, swizzledIMP);
+    ZPLog(@"  Swizzled: dictionaryForKey:");
+}
+
++ (void)hookNSUserDefaultsString:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"stringForKey:");
+    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
+    if (!originalMethod) return;
+    
+    IMP originalIMP = method_getImplementation(originalMethod);
+    __block IMP original = originalIMP;
+    
+    IMP swizzledIMP = imp_implementationWithBlock(^(id self, NSString *key) {
+        id result = ((id (*)(id, SEL, NSString *))original)(self, originalSEL, key);
+        
+        if (result && [result isKindOfClass:[NSString class]] && [(NSString *)result length] > 10 && key) {
+            [self checkDefaultsValue:result forKey:key];
+        }
+        
+        return result;
+    });
+    
+    method_setImplementation(originalMethod, swizzledIMP);
+    ZPLog(@"  Swizzled: stringForKey:");
+}
+
++ (void)hookNSUserDefaultsData:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"dataForKey:");
+    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
+    if (!originalMethod) return;
+    
+    IMP originalIMP = method_getImplementation(originalMethod);
+    __block IMP original = originalIMP;
+    
+    IMP swizzledIMP = imp_implementationWithBlock(^(id self, NSString *key) {
+        id result = ((id (*)(id, SEL, NSString *))original)(self, originalSEL, key);
+        
+        if (result && [result isKindOfClass:[NSData class]] && key) {
+            [self checkDefaultsValue:result forKey:key];
+        }
+        
+        return result;
+    });
+    
+    method_setImplementation(originalMethod, swizzledIMP);
+    ZPLog(@"  Swizzled: dataForKey:");
+}
+
++ (void)checkDefaultsValue:(id)value forKey:(NSString *)key {
+    if (!value || !key) return;
+    
+    NSString *keyLower = [key lowercaseString];
+    
+    // Check for token patterns
+    NSArray *tokenPatterns = @[@"token", @"auth", @"session", @"account", @"player"];
+    BOOL isToken = NO;
+    
+    for (NSString *pattern in tokenPatterns) {
+        if ([keyLower containsString:pattern]) {
+            isToken = YES;
+            break;
+        }
+    }
+    
+    if (isToken) {
+        NSString *valueStr = nil;
+        
+        if ([value isKindOfClass:[NSString class]]) {
+            valueStr = (NSString *)value;
+        } else if ([value isKindOfClass:[NSData class]]) {
+            valueStr = [[NSString alloc] initWithData:(NSData *)value encoding:NSUTF8StringEncoding];
+        }
+        
+        if (valueStr && valueStr.length > 10) {
+            ZPLog(@"🎯 NSUserDefaults[%@] = %@...", key, [valueStr substringToIndex:MIN(50, valueStr.length)]);
+            g_capturedTokens[[NSString stringWithFormat:@"defaults.%@", key]] = valueStr;
+            
+            // Check for JWT
+            if ([valueStr hasPrefix:@"eyJ"]) {
+                ZPTokenFound([NSString stringWithFormat:@"NSUserDefaults JWT[%@]: %@...", key, [valueStr substringToIndex:MIN(50, valueStr.length)]]);
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
+                                                                  object:nil 
+                                                                userInfo:@{@"token": valueStr, @"source": [NSString stringWithFormat:@"NSUserDefaults.%@", key]}];
+            }
+        }
+    }
+}
+
+#pragma mark - 3. Unity PlayerPrefs Hook
+
++ (void)hookUnityPlayerPrefs {
+    ZPLog(@"Hooking Unity PlayerPrefs...");
+    
+    Class playerPrefsClass = NSClassFromString(@"PlayerPrefs");
+    if (playerPrefsClass) {
+        ZPLog(@"Found PlayerPrefs class!");
+        
+        // Hook GetString
+        [self hookPlayerPrefsGetString:playerPrefsClass];
+        
+        // Hook SetString
+        [self hookPlayerPrefsSetString:playerPrefsClass];
+    } else {
+        ZPLog(@"PlayerPrefs class not found");
+    }
+}
+
++ (void)hookPlayerPrefsGetString:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"GetString:");
+    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
+    if (!originalMethod) return;
+    
+    IMP originalIMP = method_getImplementation(originalMethod);
+    __block IMP original = originalIMP;
+    
+    IMP swizzledIMP = imp_implementationWithBlock(^(NSString *key) {
+        id value = ((id (*)(Class, SEL, NSString *))original)(cls, originalSEL, key);
         
         if (value && [value isKindOfClass:[NSString class]] && [(NSString *)value length] > 10) {
             [self checkPlayerPrefsValue:value forKey:key];
@@ -747,56 +403,24 @@ static NSMutableSet *g_processedRequests = nil;
     });
     
     method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"  Swizzled: getString:");
+    ZPLog(@"  Swizzled: GetString:");
 }
 
-+ (void)hookPlayerPrefsSetString {
-    Class cls = [NSClassFromString(@"PlayerPrefs") ?: [NSClassFromString(@"UnityPlayerPrefs") class]];
-    if (!cls) return;
-    
-    SEL originalSEL = NSSelectorFromString(@"setString:forKey:");
-    if (!originalSEL) return;
-    
++ (void)hookPlayerPrefsSetString:(Class)cls {
+    SEL originalSEL = NSSelectorFromString(@"SetString:forKey:");
     Method originalMethod = class_getInstanceMethod(cls, originalSEL);
     if (!originalMethod) return;
     
     IMP originalIMP = method_getImplementation(originalMethod);
     __block IMP original = originalIMP;
     
-    IMP swizzledIMP = imp_implementationWithBlock(^(id self, NSString *value, NSString *key) {
+    IMP swizzledIMP = imp_implementationWithBlock(^(NSString *value, NSString *key) {
         ZPLog(@"📝 PlayerPrefs SET: %@ = %@...", key, [value substringToIndex:MIN(30, value.length)]);
-        ((void (*)(id, SEL, NSString *, NSString *))original)(self, originalSEL, value, key);
+        ((void (*)(Class, SEL, NSString *, NSString *))original)(cls, originalSEL, value, key);
     });
     
     method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"  Swizzled: setString:forKey:");
-}
-
-+ (void)hookPlayerPrefsGetForPlatform {
-    Class cls = [NSClassFromString(@"PlayerPrefs") ?: [NSClassFromString(@"UnityPlayerPrefs") class]];
-    if (!cls) return;
-    
-    SEL originalSEL = NSSelectorFromString(@"getStringForPlatform:withKey:");
-    if (!originalSEL) return;
-    
-    Method originalMethod = class_getInstanceMethod(cls, originalSEL);
-    if (!originalMethod) return;
-    
-    IMP originalIMP = method_getImplementation(originalMethod);
-    __block IMP original = originalIMP;
-    
-    IMP swizzledIMP = imp_implementationWithBlock(^(id self, id platform, NSString *key) {
-        id value = ((id (*)(id, SEL, id, NSString *))original)(self, originalSEL, platform, key);
-        
-        if (value && [value isKindOfClass:[NSString class]] && [(NSString *)value length] > 10) {
-            [self checkPlayerPrefsValue:value forKey:key];
-        }
-        
-        return value;
-    });
-    
-    method_setImplementation(originalMethod, swizzledIMP);
-    ZPLog(@"  Swizzled: getStringForPlatform:withKey:");
+    ZPLog(@"  Swizzled: SetString:forKey:");
 }
 
 + (void)checkPlayerPrefsValue:(NSString *)value forKey:(NSString *)key {
@@ -825,18 +449,17 @@ static NSMutableSet *g_processedRequests = nil;
     }
 }
 
-#pragma mark - 6. NSURLSession Hook
+#pragma mark - 4. NSURLSession Hook
 
 + (void)hookNSURLSession {
     ZPLog(@"Hooking NSURLSession...");
     
     Class sessionClass = [NSURLSession class];
     
-    // Hook: dataTaskWithRequest:completionHandler:
-    SEL dataTaskSEL = @selector(dataTaskWithRequest:completionHandler:);
+    // Hook dataTaskWithRequest:completionHandler:
     [self hookNSURLSessionDataTask];
     
-    // Hook: sendRequest:completionHandler:
+    // Hook sendRequest:completionHandler:
     SEL sendRequestSEL = @selector(sendRequest:completionHandler:);
     if ([sessionClass respondsToSelector:sendRequestSEL]) {
         [self hookNSURLSessionSendRequest];
@@ -854,16 +477,13 @@ static NSMutableSet *g_processedRequests = nil;
     __block IMP original = originalIMP;
     
     IMP swizzledIMP = imp_implementationWithBlock(^(NSURLSession *self, NSURLRequest *request, id completionHandler) {
-        
         ZPLog(@"🌐 NSURLSession Request: %@ %@", request.HTTPMethod, request.URL.absoluteString);
         
-        // Check headers
         NSDictionary *headers = request.allHTTPHeaderFields;
         if (headers) {
             [self checkHeadersForTokens:headers];
         }
         
-        // Call original
         return ((id (*)(id, SEL, NSURLRequest *, id))original)(self, originalSEL, request, completionHandler);
     });
     
@@ -882,7 +502,6 @@ static NSMutableSet *g_processedRequests = nil;
     __block IMP original = originalIMP;
     
     IMP swizzledIMP = imp_implementationWithBlock(^(NSURLSession *self, NSURLRequest *request, id completionHandler) {
-        
         ZPLog(@"🌐 NSURLSession SendRequest: %@ %@", request.HTTPMethod, request.URL.absoluteString);
         
         NSDictionary *headers = request.allHTTPHeaderFields;
@@ -897,21 +516,45 @@ static NSMutableSet *g_processedRequests = nil;
     ZPLog(@"  Swizzled: sendRequest:");
 }
 
-#pragma mark - 7. Keychain Hook
++ (void)checkHeadersForTokens:(NSDictionary *)headers {
+    if (!headers) return;
+    
+    for (NSString *key in headers) {
+        NSString *value = headers[key];
+        
+        if (![value isKindOfClass:[NSString class]]) continue;
+        
+        // Check Authorization header
+        if ([key.lowercaseString isEqualToString:@"authorization"]) {
+            ZPLog(@"🎯 Auth Header: %@", [value substringToIndex:MIN(60, value.length)]);
+            g_capturedTokens[@"http.Authorization"] = value;
+            
+            if ([value hasPrefix:@"Bearer "]) {
+                NSString *token = [value substringFromIndex:7];
+                ZPTokenFound([NSString stringWithFormat:@"Bearer Token: %@...", [token substringToIndex:MIN(50, token.length)]]);
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
+                                                                  object:nil 
+                                                                userInfo:@{@"token": token, @"source": @"Authorization Bearer"}];
+            }
+        }
+        
+        // Check Wildlife headers
+        if ([key.lowercaseString containsString:@"wildlife"] || 
+            [key.lowercaseString containsString:@"x-"]) {
+            ZPLog(@"    %@: %@", key, [value substringToIndex:MIN(50, value.length)]);
+            
+            if ([value hasPrefix:@"eyJ"]) {
+                g_capturedTokens[[NSString stringWithFormat:@"http.%@", key]] = value;
+            }
+        }
+    }
+}
+
+#pragma mark - 5. Keychain Hook (Basic)
 
 + (void)hookKeychain {
     ZPLog(@"Hooking Keychain...");
-    
-    // Keychain functions are C-based, would need fishhook
-    // For now, log that we're looking for Keychain access
-    ZPLog(@"  Note: Keychain hooking requires fishhook for C functions");
-    ZPLog(@"  Will hook SecItemCopyMatching, SecItemAdd, SecItemUpdate");
-    
-    // This would require using fishhook to hook:
-    // - SecItemCopyMatching
-    // - SecItemAdd
-    // - SecItemUpdate
-    // - SecItemDelete
+    ZPLog(@"  Note: Full Keychain hooking requires fishhook for SecItem functions");
 }
 
 #pragma mark - Get Captured Tokens
