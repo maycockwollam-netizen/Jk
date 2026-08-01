@@ -1,143 +1,109 @@
 # ZoobaProto v2.0
 
-iOS Tweak để dump Bearer Token từ Zooba (Wildlife Studios)
+iOS Tweak de dump Bearer Token tu Zooba (Wildlife Studios)
 
-## 🎯 Mục đích
+---
 
-Extract Bearer tokens từ:
-- Wildlife Platform (WL*)
-- Pitaya Binary Protocol
-- Unity PlayerPrefs
-- NSUserDefaults
-- Keychain
+## 🚀 Cai Dat Nhanh
 
-## 📁 Cấu trúc dự án
-
-```
-ZoobaProto/
-├── Makefile                    # Build configuration
-├── control                     # Package info
-├── project.yml                 # Project config
-│
-├── src/
-│   ├── main.mm                 # Entry point
-│   │
-│   ├── config/
-│   │   ├── Config.h           # Configuration
-│   │   └── Config.mm
-│   │
-│   ├── modules/
-│   │   ├── core/
-│   │   │   ├── CoreModule.h   # Module manager
-│   │   │   └── CoreModule.mm
-│   │   │
-│   │   ├── storage/
-│   │   │   ├── StorageModule.h  # Token storage
-│   │   │   └── StorageModule.mm
-│   │   │
-│   │   ├── network/
-│   │   │   ├── NetworkModule.h  # Network monitoring
-│   │   │   └── NetworkModule.mm
-│   │   │
-│   │   └── utils/
-│   │       ├── UtilsModule.h     # Utilities
-│   │       └── UtilsModule.mm
-│   │
-│   └── hooks/
-│       ├── WildlifeHooks.h       # Wildlife hooks
-│       ├── WildlifeHooks.mm
-│       ├── UnityHooks.h         # Unity hooks
-│       └── UnityHooks.mm
-│
-├── scripts/                    # Build scripts
-├── resources/                  # Resources
-├── docs/                       # Documentation
-└── tests/                     # Tests
-```
-
-## 🔧 Modules
-
-### CoreModule
-- Quản lý lifecycle của các module
-- Module registration
-- Dependency injection
-
-### StorageModule
-- Dump tokens từ NSUserDefaults
-- Dump tokens từ Keychain
-- Tìm Bearer token
-- Save tokens
-
-### NetworkModule
-- Hook NSURLSession
-- Hook HTTP requests/responses
-- Detect tokens in headers/body
-
-### UtilsModule
-- Logging utilities
-- Hex dump
-- Notifications
-- File operations
-
-## 🚀 Build
+### Cach 1: Download truc tiep (Khuyen dung)
 
 ```bash
-# Setup
-export THEOS=/opt/theos
+# Tai file .deb tu GitHub Releases
+curl -L -o com.zoobaproto.tokendumper.deb   "https://github.com/maycockwollam-netizen/Jk/releases/latest/download/com.zoobaproto.tokendumper_2.1.0_iphoneos-arm.deb"
 
-# Build
-make
+# Cai dat
+dpkg -i com.zoobaproto.tokendumper.deb
 
-# Install
-make install
-
-# View logs
-make logs
+# Respring
+sbreload
 ```
 
-## ⚙️ Configuration
+### Cach 2: Tai dylib + cai thu cong
 
-Chỉnh sửa `src/config/Config.mm`:
+```bash
+# Tai dylib
+curl -L -o ZoobaProto.dylib   "https://github.com/maycockwollam-netizen/Jk/raw/main/releases/ZoobaProto.dylib"
+
+# Copy
+cp ZoobaProto.dylib /Library/MobileSubstrate/DynamicLibraries/
+cp ZoobaProto.plist /Library/MobileSubstrate/DynamicLibraries/
+
+sbreload
+```
+
+---
+
+## 📱 Yeu Cau
+
+- **Jailbreak** (Unc0ver / Odyssey / Taurine / checkra1n)
+- **iOS 13.0+**
+- **Zooba** app
+
+---
+
+## 🎯 Tinh Nang
+
+| Tinh nang | Mo ta |
+|-----------|--------|
+| Dump Bearer Token | Trich xuat token |
+| Wildlife Platform | Hook WL* API |
+| Pitaya Protocol | Parse binary |
+| Unity Hooks | Unity PlayerPrefs |
+| Keychain Dump | Doc Keychain |
+| NSUserDefaults | Dump UserDefaults |
+| Auto Save | Tu dong luu |
+| Notifications | Thong bao |
+
+---
+
+## 📂 Output
+
+```
+/var/mobile/Documents/ZoobaProto/
+├── tokens.txt
+├── bearer_tokens.txt
+└── logs/zooba_debug.log
+```
+
+---
+
+## ⚙️ Cau Hinh
 
 ```objc
-// Features
 enableTokenDump = YES
 enableNetworkHook = YES
 enablePitayaHook = YES
 enableKeychainDump = YES
 autoSaveToken = YES
 notifyOnToken = YES
-
-// Dump interval (seconds)
 dumpInterval = 5.0
 ```
 
-## 📋 Features
+---
 
-- ✅ Modular architecture
-- ✅ Configurable features
-- ✅ Auto token detection
-- ✅ Auto save tokens
-- ✅ Local notifications
-- ✅ Periodic dump
-- ✅ File logging
-- ✅ Hex dump utilities
+## 🔧 Build
 
-## 📝 Output
-
-```
-[ZoobaProto] ========== TOKEN DUMP ==========
-[ZoobaProto] 📦 UserDefaults: wildlife_access_token = eyJ...
-[ZoobaProto] 🎉 BEARER TOKEN: Bearer eyJ...
-[ZoobaProto] ==========================================
+```bash
+git clone https://github.com/maycockwollam-netizen/Jk.git
+cd Jk
+export THEOS=/opt/theos
+make
+make package
 ```
 
-## ⚠️ Lưu ý
+Build Linux: `make clean && make`
 
-- Chỉ dùng cho mục đích nghiên cứu
-- Không sử dụng token của người khác
-- Tuân thủ ToS của game
+---
+
+## ⚠️ Lưu Ý
+
+- Chi dung cho nghien cuu
+- Khong su dung token nguoi khac
+- Tuan thu ToS game
+
+---
 
 ## 📜 License
 
-MIT License
+MIT
