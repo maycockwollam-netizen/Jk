@@ -6,12 +6,30 @@
 //
 
 #import "UtilsModule.h"
-#import "Config.h"
+#import "config/Config.h"
 #import <UIKit/UIKit.h>
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto/Utils] " fmt, ##args)
 
+static UtilsModule *_shared = nil;
+
 @implementation UtilsModule
+
++ (instancetype)shared {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _shared = [[UtilsModule alloc] init];
+    });
+    return _shared;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
 
 - (void)setup {
     ZPLog(@"Setting up Utils module...");

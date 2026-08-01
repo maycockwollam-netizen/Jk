@@ -5,7 +5,7 @@
 //  Configuration management
 //
 
-#import "Config.h"
+#import "config/Config.h"
 
 static NSString * const kConfigFileName = @"ZoobaProto.config";
 static NSString * const kConfigVersion = @"2.0.0";
@@ -236,7 +236,7 @@ static NSString * const kConfigVersion = @"2.0.0";
         if (config[@"enablePeriodicDump"]) _enablePeriodicDump = [config[@"enablePeriodicDump"] boolValue];
         
         // Logging
-        if (config[@"logLevel"]) _logLevel = [config[@"logLevel"] integerValue];
+        if (config[@"logLevel"]) _logLevel = (ZPLogLevel)[config[@"logLevel"] integerValue];
         if (config[@"logFilePath"]) _logFilePath = config[@"logFilePath"];
         if (config[@"logToConsole"]) _logToConsole = [config[@"logToConsole"] boolValue];
         if (config[@"logToFile"]) _logToFile = [config[@"logToFile"] boolValue];
@@ -252,7 +252,7 @@ static NSString * const kConfigVersion = @"2.0.0";
         if (config[@"playSoundOnToken"]) _playSoundOnToken = [config[@"playSoundOnToken"] boolValue];
         
         // Storage
-        if (config[@"storageBackend"]) _storageBackend = [config[@"storageBackend"] integerValue];
+        if (config[@"storageBackend"]) _storageBackend = (ZPStorageBackend)[config[@"storageBackend"] integerValue];
         if (config[@"tokenSavePath"]) _tokenSavePath = config[@"tokenSavePath"];
         
         NSLog(@"[ZoobaProto/Config] Config loaded from: %@", path);

@@ -6,7 +6,7 @@
 //
 
 #import "CoreModule.h"
-#import "Config.h"
+#import "config/Config.h"
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto/Core] " fmt, ##args)
 

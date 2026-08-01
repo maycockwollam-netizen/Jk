@@ -9,8 +9,8 @@
 //
 
 #import "ProtoInterceptor.h"
-#import "Config.h"
-#import <fishhook/fishhook.h>
+#import "config/Config.h"
+#import "fishhook/fishhook.h"
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import <arpa/inet.h>
@@ -116,7 +116,7 @@ static NSDictionary *readProtobufField(const uint8_t **ptr, const uint8_t *end) 
                 } else {
                     // Hex for binary data
                     NSMutableString *hex = [NSMutableString string];
-                    const uint8_t *hexBytes = data.bytes;
+                    const uint8_t *hexBytes = (const uint8_t *)data.bytes;
                     for (NSUInteger i = 0; i < MIN(data.length, 32); i++) {
                         [hex appendFormat:@"%02X", hexBytes[i]];
                     }
@@ -234,7 +234,7 @@ static int hooked_send(int sockfd, const void *buf, size_t len, int flags) {
     }
     
     @try {
-        NSDictionary *packet = parsePitayaPacket(buf, len, YES);
+        NSDictionary *packet = parsePitayaPacket((const uint8_t *)buf, len, YES);
         if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionSend;
@@ -268,7 +268,7 @@ static int hooked_recv(int sockfd, void *buf, size_t len, int flags) {
     }
     
     @try {
-        NSDictionary *packet = parsePitayaPacket(buf, result, NO);
+        NSDictionary *packet = parsePitayaPacket((const uint8_t *)buf, result, NO);
         if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionRecv;
@@ -300,7 +300,7 @@ static int hooked_write(int fd, const void *buf, size_t count) {
     }
     
     @try {
-        NSDictionary *packet = parsePitayaPacket(buf, count, YES);
+        NSDictionary *packet = parsePitayaPacket((const uint8_t *)buf, count, YES);
         if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionSend;
@@ -334,7 +334,7 @@ static int hooked_read(int fd, void *buf, size_t count) {
     }
     
     @try {
-        NSDictionary *packet = parsePitayaPacket(buf, result, NO);
+        NSDictionary *packet = parsePitayaPacket((const uint8_t *)buf, result, NO);
         if (packet && packet[@"route"]) {
             ZPProtoMessageInfo *msg = [[ZPProtoMessageInfo alloc] init];
             msg.direction = ZPProtoDirectionRecv;
@@ -574,10 +574,10 @@ static int hooked_read(int fd, void *buf, size_t count) {
     ZPLog(@"Installing ProtoInterceptor hooks (fishhook)...");
     
     struct rebinding rebindings[4];
-    rebindings[0] = (struct rebinding){"send", hooked_send, (void **)&original_send};
-    rebindings[1] = (struct rebinding){"recv", hooked_recv, (void **)&original_recv};
-    rebindings[2] = (struct rebinding){"write", hooked_write, (void **)&original_write};
-    rebindings[3] = (struct rebinding){"read", hooked_read, (void **)&original_read};
+    rebindings[0] = (struct rebinding){"send", (void *)hooked_send, (void **)&original_send};
+    rebindings[1] = (struct rebinding){"recv", (void *)hooked_recv, (void **)&original_recv};
+    rebindings[2] = (struct rebinding){"write", (void *)hooked_write, (void **)&original_write};
+    rebindings[3] = (struct rebinding){"read", (void *)hooked_read, (void **)&original_read};
     
     rebind_symbols(rebindings, 4);
     

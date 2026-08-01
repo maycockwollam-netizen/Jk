@@ -6,8 +6,9 @@
 //  Based on reverse-engineered Zooba code analysis
 //
 
+#import <objc/runtime.h>
 #import "NetworkModule.h"
-#import "Config.h"
+#import "config/Config.h"
 #import "StorageModule.h"
 #import "UtilsModule.h"
 

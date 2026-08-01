@@ -11,6 +11,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface UtilsModule : NSObject
 
+// Singleton
++ (instancetype)shared;
+
 // Setup
 - (void)setup;
 - (void)teardown;

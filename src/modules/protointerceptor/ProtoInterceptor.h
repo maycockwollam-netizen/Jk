@@ -51,6 +51,7 @@ typedef NS_ENUM(NSInteger, ZPProtoDirection) {
 // Captured messages
 @property (nonatomic, readonly) NSArray<ZPProtoMessageInfo *> *capturedMessages;
 - (void)clearMessages;
+- (void)captureMessage:(ZPProtoMessageInfo *)msg;
 
 // Callbacks
 @property (nonatomic, copy, nullable) void (^onMessageCaptured)(ZPProtoMessageInfo *message);

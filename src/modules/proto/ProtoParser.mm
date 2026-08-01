@@ -6,7 +6,7 @@
 //
 
 #import "ProtoParser.h"
-#import "Config.h"
+#import "config/Config.h"
 #import <objc/runtime.h>
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto/Proto] " fmt, ##args)
@@ -93,7 +93,7 @@
     NSMutableArray<ZPProtoField *> *parsedFields = [NSMutableArray array];
     NSMutableData *mutableData = [data mutableCopy];
     
-    const uint8_t *bytes = mutableData.bytes;
+    const uint8_t *bytes = (const uint8_t *)mutableData.bytes;
     NSUInteger length = mutableData.length;
     NSUInteger offset = 0;
     

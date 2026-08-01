@@ -3,7 +3,7 @@
 # iOS Tweak: Bearer Token Dumper for Zooba
 #
 
-THEOS := /opt/theos
+THEOS ?= /workspace/theos
 THEOS_DEVICE_IP := localhost
 THEOS_DEVICE_PORT := 2222
 
@@ -19,8 +19,21 @@ PKG_DEPENDS := mobilesubstrate (>= 0.9.5000)
 
 # Target
 TARGET := iphone:clang:latest:15.0
-ARCHS := arm64 arm64e
+ARCHS := arm64
 INSTALL_TARGET_PROCESSES := Zooba
+
+# Cross-compilation settings for Linux host
+export PATH := /tmp/arm64-tools/bin:/tmp/lld-19-extract/usr/bin:$(PATH)
+export LD_LIBRARY_PATH := /tmp/lld-19-extract/usr/lib/llvm-19:/tmp/ncurses-fix/lib/x86_64-linux-gnu:/tmp/ios-arm64e-clang-toolchain/lib:$(LD_LIBRARY_PATH)
+
+# Override theos toolchain for Linux cross-compilation
+TARGET_CC := arm64-apple-darwin-clang
+TARGET_CXX := arm64-apple-darwin-clang++
+TARGET_LD := arm64-apple-darwin-ld
+
+# iOS SDK settings
+THEOS_SDKS_PATH := $(THEOS)/sdks
+THEOS_PLATFORM_SDK_ROOT := $(THEOS)/sdks/iPhoneOS15.6.sdk
 
 # Files
 MODULES_DIR := src/modules
@@ -34,11 +47,11 @@ UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/u
 UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
 PROTO_FILES := $(wildcard $(MODULES_DIR)/proto/*.mm) $(wildcard $(MODULES_DIR)/proto/*.m)
 PROTO_INTERCEPTOR_FILES := $(wildcard $(MODULES_DIR)/protointerceptor/*.mm) $(wildcard $(MODULES_DIR)/protointerceptor/*.m)
-PROTO_UI_FILES := $(wildcard $(MODULES_DIR)/ui/ProtoUI.*)
+PROTO_UI_FILES := $(wildcard $(MODULES_DIR)/ui/ProtoUI.mm)
 
 # Hooks
 HOOK_FILES := $(wildcard $(HOOKS_DIR)/*.mm) $(wildcard $(HOOKS_DIR)/*.m)
-SWIZZLER_FILES := $(wildcard $(HOOKS_DIR)/Swizzler.*)
+SWIZZLER_FILES := $(wildcard $(HOOKS_DIR)/Swizzler.mm) $(wildcard $(HOOKS_DIR)/Swizzler.m)
 
 # Config
 CONFIG_FILES := $(wildcard src/config/*.mm) $(wildcard src/config/*.m)
@@ -65,7 +78,17 @@ ZOOBAPROTO_PRIVATE_FRAMEWORKS :=
 ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip -lfishhook
 
 # Flags
-ZOOBAPROTO_CFLAGS := -fobjc-arc -w -DDEBUG=$(DEBUG)
+ZOOBAPROTO_CFLAGS := -fobjc-arc -w -DDEBUG=$(DEBUG) \
+    -I/workspace/project/Jk/src \
+    -I/workspace/project/Jk/src/config \
+    -I/workspace/project/Jk/src/modules/core \
+    -I/workspace/project/Jk/src/modules/network \
+    -I/workspace/project/Jk/src/modules/storage \
+    -I/workspace/project/Jk/src/modules/utils \
+    -I/workspace/project/Jk/src/modules/ui \
+    -I/workspace/project/Jk/src/modules/proto \
+    -I/workspace/project/Jk/src/modules/protointerceptor \
+    -I/workspace/project/Jk/src/hooks
 
 # Include Theos
 include $(THEOS)/makefiles/common.mk

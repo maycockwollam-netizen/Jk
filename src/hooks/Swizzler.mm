@@ -180,7 +180,9 @@ static NSMutableDictionary *g_swizzledMethods = nil;
         
         // Get return value
         __unsafe_unretained id returnValue = nil;
-        if (method_getReturnType(method)[0] != 'v') { // Not void
+        char returnType[256];
+        method_getReturnType(method, returnType, sizeof(returnType));
+        if (returnType[0] != 'v') { // Not void
             __unsafe_unretained id ret = nil;
             [invocation getReturnValue:&ret];
             returnValue = ret;

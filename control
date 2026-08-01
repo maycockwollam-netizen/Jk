@@ -1,4 +1,4 @@
-Package: com.zoobaproto.tokenDumper
+Package: com.zoobaproto.tokendumper
 Name: ZoobaProto
 Version: 2.0.0
 Architecture: iphoneos-arm

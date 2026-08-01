@@ -6,10 +6,12 @@
 //
 
 #import "StorageModule.h"
-#import "Config.h"
+#import "config/Config.h"
 #import <Security/Security.h>
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto/Storage] " fmt, ##args)
+
+static StorageModule *_shared = nil;
 
 #pragma mark - ZPToken
 
@@ -48,6 +50,14 @@
 @end
 
 @implementation StorageModule
+
++ (instancetype)shared {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _shared = [[StorageModule alloc] init];
+    });
+    return _shared;
+}
 
 - (instancetype)init {
     self = [super init];
@@ -164,7 +174,7 @@
 - (NSString *)findSessionToken {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     
-    for (NSString *key in defaults.allKeys) {
+    for (NSString *key in [[defaults dictionaryRepresentation] allKeys]) {
         NSString *lowercaseKey = [key lowercaseString];
         if ([lowercaseKey containsString:@"session"]) {
             NSString *value = [defaults stringForKey:key];

@@ -6,7 +6,7 @@
 //
 
 #import "UIModule.h"
-#import "Config.h"
+#import "config/Config.h"
 #import "StorageModule.h"
 #import "UtilsModule.h"
 #import <objc/runtime.h>
@@ -51,11 +51,11 @@
     [self.contentView addSubview:_valueLabel];
     
     // Copy Button
-    _copyButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_copyButton setTitle:@"📋" forState:UIControlStateNormal];
-    _copyButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [_copyButton addTarget:self action:@selector(copyTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.contentView addSubview:_copyButton];
+    _tokenCopyButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_tokenCopyButton setTitle:@"📋" forState:UIControlStateNormal];
+    _tokenCopyButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [_tokenCopyButton addTarget:self action:@selector(copyTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self.contentView addSubview:_tokenCopyButton];
     
     // Constraints
     [NSLayoutConstraint activateConstraints:@[
@@ -65,13 +65,13 @@
         [_typeLabel.centerYAnchor constraintEqualToAnchor:_keyLabel.centerYAnchor],
         [_typeLabel.leadingAnchor constraintEqualToAnchor:_keyLabel.trailingAnchor constant:8],
         
-        [_copyButton.centerYAnchor constraintEqualToAnchor:_keyLabel.centerYAnchor],
-        [_copyButton.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
-        [_copyButton.widthAnchor constraintEqualToConstant:40],
+        [_tokenCopyButton.centerYAnchor constraintEqualToAnchor:_keyLabel.centerYAnchor],
+        [_tokenCopyButton.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
+        [_tokenCopyButton.widthAnchor constraintEqualToConstant:40],
         
         [_valueLabel.topAnchor constraintEqualToAnchor:_keyLabel.bottomAnchor constant:4],
         [_valueLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
-        [_valueLabel.trailingAnchor constraintEqualToAnchor:_copyButton.leadingAnchor constant:-8],
+        [_valueLabel.trailingAnchor constraintEqualToAnchor:_tokenCopyButton.leadingAnchor constant:-8],
         [_valueLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-8],
     ]];
 }
@@ -94,9 +94,9 @@
     pasteboard.string = _valueLabel.text;
     
     // Visual feedback
-    [_copyButton setTitle:@"✅" forState:UIControlStateNormal];
+    [_tokenCopyButton setTitle:@"✅" forState:UIControlStateNormal];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        [self->_copyButton setTitle:@"📋" forState:UIControlStateNormal];
+        [self->_tokenCopyButton setTitle:@"📋" forState:UIControlStateNormal];
     });
 }
 

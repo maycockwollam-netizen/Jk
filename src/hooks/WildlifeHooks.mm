@@ -6,13 +6,14 @@
 //  Based on real classes from Zooba IPA v6.24.2
 //
 
+#import <objc/runtime.h>
 #import "WildlifeHooks.h"
-#import "Config.h"
+#import "config/Config.h"
 #import "StorageModule.h"
 #import "Swizzler.h"
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto/Wildlife] " fmt, ##args)
-#define ZPTokenFound(token) ZPLog(@"🎉 TOKEN FOUND: %@", token)
+#define ZPTokenFound(fmt, args...) ZPLog(@"🎉 TOKEN FOUND: " fmt, ##args)
 
 static NSMutableDictionary *g_capturedTokens = nil;
 static NSMutableSet *g_processedRequests = nil;
@@ -191,7 +192,7 @@ static NSMutableSet *g_processedRequests = nil;
                 
                 // Check if it's a JWT (starts with eyJ)
                 if ([tokenStr hasPrefix:@"eyJ"]) {
-                    ZPTokenFound([NSString stringWithFormat:@"JWT[%@]: %@...", prop, [tokenStr substringToIndex:MIN(50, tokenStr.length)]]);
+                    ZPLog(@"🎉 TOKEN FOUND: JWT %@: %@", prop, [tokenStr substringToIndex:MIN(50, tokenStr.length)]);
                     g_capturedTokens[[NSString stringWithFormat:@"account.%@", prop]] = tokenStr;
                     [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
                                                                       object:nil 
@@ -356,7 +357,7 @@ static NSMutableSet *g_processedRequests = nil;
             
             // Check for JWT
             if ([valueStr hasPrefix:@"eyJ"]) {
-                ZPTokenFound([NSString stringWithFormat:@"NSUserDefaults JWT[%@]: %@...", key, [valueStr substringToIndex:MIN(50, valueStr.length)]]);
+                ZPLog(@"🎉 TOKEN FOUND: NSUserDefaults JWT %@: %@", key, [valueStr substringToIndex:MIN(50, valueStr.length)]);
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
                                                                   object:nil 
                                                                 userInfo:@{@"token": valueStr, @"source": [NSString stringWithFormat:@"NSUserDefaults.%@", key]}];
@@ -441,7 +442,7 @@ static NSMutableSet *g_processedRequests = nil;
         g_capturedTokens[[NSString stringWithFormat:@"PlayerPrefs.%@", key]] = value;
         
         if ([value hasPrefix:@"eyJ"]) {
-            ZPTokenFound([NSString stringWithFormat:@"PlayerPrefs JWT[%@]: %@...", key, [value substringToIndex:MIN(50, value.length)]]);
+            ZPLog(@"🎉 TOKEN FOUND: PlayerPrefs JWT %@: %@", key, [value substringToIndex:MIN(50, value.length)]);
             [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
                                                               object:nil 
                                                             userInfo:@{@"token": value, @"source": @"PlayerPrefs"}];
@@ -481,7 +482,7 @@ static NSMutableSet *g_processedRequests = nil;
         
         NSDictionary *headers = request.allHTTPHeaderFields;
         if (headers) {
-            [self checkHeadersForTokens:headers];
+            [WildlifeHooks checkHeadersForTokens:headers];
         }
         
         return ((id (*)(id, SEL, NSURLRequest *, id))original)(self, originalSEL, request, completionHandler);
@@ -506,7 +507,7 @@ static NSMutableSet *g_processedRequests = nil;
         
         NSDictionary *headers = request.allHTTPHeaderFields;
         if (headers) {
-            [self checkHeadersForTokens:headers];
+            [WildlifeHooks checkHeadersForTokens:headers];
         }
         
         return ((void (*)(id, SEL, NSURLRequest *, id))original)(self, originalSEL, request, completionHandler);
@@ -531,7 +532,7 @@ static NSMutableSet *g_processedRequests = nil;
             
             if ([value hasPrefix:@"Bearer "]) {
                 NSString *token = [value substringFromIndex:7];
-                ZPTokenFound([NSString stringWithFormat:@"Bearer Token: %@...", [token substringToIndex:MIN(50, token.length)]]);
+                ZPLog(@"🎉 TOKEN FOUND: Bearer Token: %@...", [token substringToIndex:MIN(50, token.length)]);
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"ZoobaProtoTokenFound" 
                                                                   object:nil 
                                                                 userInfo:@{@"token": token, @"source": @"Authorization Bearer"}];

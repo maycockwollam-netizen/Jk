@@ -5,8 +5,9 @@
 //  Hooks for Unity classes
 //
 
+#import <objc/runtime.h>
 #import "UnityHooks.h"
-#import "Config.h"
+#import "config/Config.h"
 #import "StorageModule.h"
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto/Unity] " fmt, ##args)

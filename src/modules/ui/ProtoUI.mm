@@ -135,7 +135,7 @@
     NSError *error = nil;
     NSString *pattern = @"message\\s+(\\w+)\\s*\\{([^}]*)\\}";
     NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
-                                                                       options:NSRegularExpressionDotMatchesLineSeparator
+                                                                       options:NSRegularExpressionDotMatchesLineSeparators
                                                                          error:&error];
     
     if (error) {
@@ -171,7 +171,7 @@
     // Also try to find enum definitions
     NSString *enumPattern = @"enum\\s+(\\w+)\\s*\\{([^}]*)\\}";
     NSRegularExpression *enumRegex = [NSRegularExpression regularExpressionWithPattern:enumPattern
-                                                                            options:NSRegularExpressionDotMatchesLineSeparator
+                                                                            options:NSRegularExpressionDotMatchesLineSeparators
                                                                               error:nil];
     
     if (!enumRegex) {
@@ -204,7 +204,7 @@
     // Also try to find service definitions
     NSString *servicePattern = @"service\\s+(\\w+)\\s*\\{([^}]*)\\}";
     NSRegularExpression *serviceRegex = [NSRegularExpression regularExpressionWithPattern:servicePattern
-                                                                               options:NSRegularExpressionDotMatchesLineSeparator
+                                                                               options:NSRegularExpressionDotMatchesLineSeparators
                                                                                  error:nil];
     
     if (!serviceRegex) {

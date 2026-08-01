@@ -31,6 +31,9 @@ typedef NS_ENUM(NSInteger, ZPStorageType) {
 
 @interface StorageModule : NSObject
 
+// Singleton
++ (instancetype)shared;
+
 // Setup
 - (void)setup;
 - (void)teardown;

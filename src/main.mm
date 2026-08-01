@@ -42,6 +42,9 @@ static NSString * const kTargetProcessName = @"Zooba";
 static NSString * const kVersion = @"2.1.0";
 static NSString * const kBuildDate = @"2024-01-15";
 
+// Forward declarations
+static void SchedulePeriodicDump(void);
+
 // ========== MODULE INSTANCES ==========
 
 static CoreModule *g_coreModule = nil;

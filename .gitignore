@@ -30,3 +30,4 @@ xcuserdata/
 
 # Substrate
 *.plist.e
+*.dylib

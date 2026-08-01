@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) UILabel *keyLabel;
 @property (nonatomic, strong) UILabel *valueLabel;
 @property (nonatomic, strong) UILabel *typeLabel;
-@property (nonatomic, strong) UIButton *copyButton;
+@property (nonatomic, strong) UIButton *tokenCopyButton;
 - (void)configureWithKey:(NSString *)key value:(NSString *)value type:(NSString *)type;
 @end
 
