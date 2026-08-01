@@ -1,0 +1,9 @@
+Package: com.zoobaproto.tokenDumper
+Name: ZoobaProto
+Version: 2.0.0
+Architecture: iphoneos-arm
+Description: Zooba Bearer Token Dumper - Extracts Bearer tokens from Wildlife/Pitaya
+Section: Tweaks
+Maintainer: ZoobaProto
+Author: ZoobaProto
+Depends: mobilesubstrate (>= 0.9.5000)

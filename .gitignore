@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Build
+obj/
+.deb/
+*.deb
+packages/
+.theos/
+*.log
+
+# Theos
+_tweak.xm.e
+*.xm.e
+
+# Xcode
+xcuserdata/
+*.xcuserdatad/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary
+*.tmp
+*.bak
+*~
+
+# Substrate
+*.plist.e

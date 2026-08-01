@@ -1,0 +1,51 @@
+#
+# ZoobaProto v2 - Project Configuration
+# iOS Tweak: Bearer Token Dumper for Zooba
+#
+
+# Project Info
+PROJECT_NAME: ZoobaProto
+PROJECT_VERSION: 2.0.0
+PROJECT_BUNDLE_ID: com.zoobaproto.tokenDumper
+PROJECT_DESCRIPTION: Zooba Bearer Token Dumper - Extract auth tokens from Wildlife/Pitaya
+
+# Build Settings
+TARGET: iphone:clang:latest:14.0
+ARCHS: arm64 arm64e
+INSTALL_TARGET_PROCESSES: Zooba
+
+# Package Info  
+PACKAGE_NAME: ZoobaProto
+PACKAGE_VERSION: 2.0.0
+PACKAGE_SECTION: Tweaks
+PACKAGE_DEPENDS: mobilesubstrate (>= 0.9.5000)
+
+# Paths
+THEOS_DEVICE_IP: localhost
+THEOS_DEVICE_PORT: 2222
+
+# Features (toggle)
+FEATURES:
+  ENABLE_TOKEN_DUMP: true
+  ENABLE_NETWORK_HOOK: true
+  ENABLE_PITAYA_HOOK: true
+  ENABLE_DEBUG_LOGGING: true
+  ENABLE_FILE_LOGGING: false
+  ENABLE_KEYCHAIN_DUMP: true
+  AUTO_SAVE_TOKEN: true
+  NOTIFY_ON_TOKEN: true
+
+# Targets
+TARGETS:
+  - name: ZoobaProto
+    type: tweak
+    files:
+      - src/main.mm
+      - src/hooks/WildlifeHooks.mm
+      - src/hooks/UnityHooks.mm
+      - src/config/Config.mm
+    modules:
+      - core/CoreModule
+      - network/NetworkModule
+      - storage/StorageModule
+      - utils/UtilsModule
