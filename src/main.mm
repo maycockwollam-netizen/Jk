@@ -1,6 +1,6 @@
 //
 //  main.mm
-//  ZoobaProto v2.1.4
+//  ZoobaProto v2.2.0
 //
 
 #import <UIKit/UIKit.h>
@@ -10,168 +10,125 @@
 #import "config/Config.h"
 #import "modules/storage/StorageModule.h"
 #import "modules/utils/UtilsModule.h"
-#import "modules/ui/UIModule.h"
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto] " fmt, ##args)
-#define ZPLogInfo(fmt, args...) NSLog(@"[ZoobaProto][INFO] " fmt, ##args)
-#define ZPLogError(fmt, args...) NSLog(@"[ZoobaProto][ERROR] " fmt, ##args)
 
 static NSString * const kTargetBundleID = @"com.fungames.battleroyale";
-static NSString * const kVersion = @"2.1.4";
+static NSString * const kVersion = @"2.2.0";
 
-static StorageModule *g_storageModule = nil;
-static UtilsModule *g_utilsModule = nil;
-static UIModule *g_uiModule = nil;
+static StorageModule *g_storage = nil;
 static BOOL g_initialized = NO;
 
-#pragma mark - Floating Button
+#pragma mark - Overlay Window
 
-@interface ZPFloatingButton : NSObject
-+ (void)setup;
+@interface ZPOverlay : UIWindow
 @end
 
-@implementation ZPFloatingButton
+@implementation ZPOverlay
 
-static UIWindow *_overlayWindow = nil;
-static UIButton *_btn = nil;
-
-+ (void)setup {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (_overlayWindow) {
-            ZPLogInfo(@"Window already exists");
-            return;
-        }
-        
-        ZPLogInfo(@"Creating overlay window...");
-        
-        // Create new window at highest level
-        _overlayWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-        _overlayWindow.windowLevel = UIWindowLevelAlert + 1; // Higher than everything
-        _overlayWindow.backgroundColor = [UIColor clearColor];
-        
-        UIViewController *vc = [[UIViewController alloc] init];
-        vc.view.backgroundColor = [UIColor clearColor];
-        _overlayWindow.rootViewController = vc;
-        
-        // Create button
-        CGFloat size = 70;
-        CGFloat x = [UIScreen mainScreen].bounds.size.width - size - 20;
-        
-        _btn = [UIButton buttonWithType:UIButtonTypeCustom];
-        _btn.frame = CGRectMake(x, 80, size, size);
-        _btn.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:1.0 alpha:1.0];
-        _btn.layer.cornerRadius = size / 2;
-        _btn.layer.borderWidth = 4;
-        _btn.layer.borderColor = [UIColor whiteColor].CGColor;
-        _btn.layer.shadowColor = [UIColor blackColor].CGColor;
-        _btn.layer.shadowOffset = CGSizeMake(0, 5);
-        _btn.layer.shadowRadius = 12;
-        _btn.layer.shadowOpacity = 0.6;
-        
-        [_btn setTitle:@"ZP" forState:UIControlStateNormal];
-        [_btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        _btn.titleLabel.font = [UIFont boldSystemFontOfSize:26];
-        
-        [_btn addTarget:[self class] action:@selector(tapped) forControlEvents:UIControlEventTouchUpInside];
-        
-        [vc.view addSubview:_btn];
-        
-        [_overlayWindow makeKeyAndVisible];
-        
-        ZPLogInfo(@"Overlay window created at level %f!", _overlayWindow.windowLevel);
-    });
+- (void)makeKeyAndVisible {
+    ZPLog(@"Making overlay visible");
+    [super makeKeyAndVisible];
 }
 
-+ (void)tapped {
-    ZPLogInfo(@"Button tapped!");
-    if (g_uiModule) {
-        [g_uiModule showTokenPanel];
+@end
+
+#pragma mark - Setup
+
+static void SetupOverlay() {
+    @autoreleasepool {
+        ZPLog(@"Setting up overlay...");
+        
+        @try {
+            CGRect screenBounds = [UIScreen mainScreen].bounds;
+            
+            // Create overlay window
+            ZPOverlay *overlay = [[ZPOverlay alloc] initWithFrame:screenBounds];
+            overlay.windowLevel = UIWindowLevelStatusBar + 1;
+            overlay.backgroundColor = [UIColor clearColor];
+            
+            // Root view controller
+            UIViewController *rootVC = [[UIViewController alloc] init];
+            overlay.rootViewController = rootVC;
+            
+            // Button
+            UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+            btn.frame = CGRectMake(screenBounds.size.width - 80, 60, 70, 70);
+            btn.backgroundColor = [UIColor colorWithRed:0.1 green:0.4 blue:0.9 alpha:1.0];
+            btn.layer.cornerRadius = 35;
+            btn.layer.borderWidth = 3;
+            btn.layer.borderColor = [UIColor whiteColor].CGColor;
+            
+            [btn setTitle:@"ZP" forState:UIControlStateNormal];
+            [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            btn.titleLabel.font = [UIFont boldSystemFontOfSize:24];
+            
+            [btn addTarget:rootVC action:@selector(buttonTapped) forControlEvents:UIControlEventTouchUpInside];
+            
+            [rootVC.view addSubview:btn];
+            
+            [overlay makeKeyAndVisible];
+            
+            ZPLog(@"Overlay setup complete!");
+            
+        } @catch (NSException *e) {
+            ZPLog(@"Setup error: %@", e.reason);
+        }
     }
 }
 
+// Button action
+@interface UIViewController (ZPAction)
+- (void)buttonTapped;
 @end
 
-#pragma mark - Functions
+@implementation UIViewController (ZPAction)
 
-static void DoDump() {
+- (void)buttonTapped {
+    ZPLog(@"Button tapped!");
+    
     @try {
-        [g_storageModule dumpAllTokens];
-        NSString *bearer = [g_storageModule findBearerToken];
-        if (bearer) {
-            ZPLog(@"========== TOKEN FOUND ==========");
-            ZPLog(@"%@", [bearer substringToIndex:MIN(40, bearer.length)]);
-            ZPLog(@"================================");
-            if ([Config shared].autoSaveToken) {
-                [g_storageModule saveToken:bearer];
+        NSArray *tokens = nil;
+        if (g_storage) {
+            [g_storage dumpAllTokens];
+            NSString *bearer = [g_storage findBearerToken];
+            if (bearer) {
+                ZPLog(@"TOKEN: %@", [bearer substringToIndex:MIN(50, bearer.length)]);
             }
-            if (g_uiModule) {
-                [g_uiModule displayToken:bearer key:@"Bearer"];
-            }
-            
-            // Also save to file for easy reading
-            NSString *logPath = @"/var/mobile/Documents/ZoobaProto/tokens.log";
-            NSString *logEntry = [NSString stringWithFormat:@"%@: %@\n", [NSDate date], bearer];
-            [[NSFileManager defaultManager] createDirectoryAtPath:@"/var/mobile/Documents/ZoobaProto/" withIntermediateDirectories:YES attributes:nil error:nil];
-            NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:logPath];
-            if (!fh) {
-                [[NSData data] writeToFile:logPath atomically:YES];
-                fh = [NSFileHandle fileHandleForWritingAtPath:logPath];
-            }
-            [fh seekToEndOfFile];
-            [fh writeData:[logEntry dataUsingEncoding:NSUTF8StringEncoding]];
-            [fh closeFile];
         }
     } @catch (NSException *e) {
-        ZPLogError(@"Dump error: %@", e.reason);
+        ZPLog(@"Dump error: %@", e.reason);
     }
 }
 
-static void ScheduleDump() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        if (g_initialized) {
-            DoDump();
-            ScheduleDump();
-        }
-    });
-}
+@end
 
 #pragma mark - Entry Point
 
 __attribute__((constructor))
-static void Init() {
-    ZPLog(@"ZoobaProto %@ loading...", kVersion);
+static void ZoobaProtoInit() {
+    ZPLog(@"ZoobaProto %@", kVersion);
     
     if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:kTargetBundleID]) {
         return;
     }
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    ZPLog(@"Target app detected, loading...");
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         if (g_initialized) return;
         g_initialized = YES;
         
         @try {
-            g_storageModule = [[StorageModule alloc] init];
-            [g_storageModule setup];
+            g_storage = [[StorageModule alloc] init];
+            [g_storage setup];
             
-            g_utilsModule = [[UtilsModule alloc] init];
-            [g_utilsModule setup];
+            SetupOverlay();
             
-            g_uiModule = [UIModule shared];
-            [g_uiModule setup];
-            
-            [ZPFloatingButton setup];
-            
-            ZPLog(@"ZoobaProto %@ ready!", kVersion);
-            
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)),
-                           dispatch_get_main_queue(), ^{
-                DoDump();
-                ScheduleDump();
-            });
+            ZPLog(@"ZoobaProto %@ loaded!", kVersion);
             
         } @catch (NSException *e) {
-            ZPLogError(@"Init error: %@", e.reason);
+            ZPLog(@"Init error: %@", e.reason);
         }
     });
 }
