@@ -50,6 +50,11 @@ typedef NS_ENUM(NSInteger, ZPStorageType) {
 - (void)saveToken:(NSString *)token;
 - (void)saveToken:(NSString *)token withKey:(NSString *)key;
 
+// Proto Definitions
+- (void)saveProtoDefinitions:(NSDictionary *)protoData;
+- (NSArray *)getAllProtoDefinitions;
+- (void)clearProtoDefinitions;
+
 // Clear
 - (void)clearAllTokens;
 

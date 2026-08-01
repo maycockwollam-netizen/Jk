@@ -306,6 +306,105 @@
     ZPLog(@"Saved token to: %@", path);
 }
 
+#pragma mark - Proto Definitions
+
+static NSMutableArray *g_savedProtoDefinitions = nil;
+
+- (void)saveProtoDefinitions:(NSDictionary *)protoData {
+    if (!protoData) return;
+    
+    @synchronized (self) {
+        if (!g_savedProtoDefinitions) {
+            g_savedProtoDefinitions = [NSMutableArray array];
+        }
+        
+        [g_savedProtoDefinitions addObject:protoData];
+        
+        // Save to file
+        [self saveProtoDefinitionsToFile];
+        
+        ZPLog(@"Saved proto definitions: %@", protoData[@"filename"]);
+    }
+}
+
+- (NSArray *)getAllProtoDefinitions {
+    @synchronized (self) {
+        if (!g_savedProtoDefinitions || g_savedProtoDefinitions.count == 0) {
+            [self loadProtoDefinitionsFromFile];
+        }
+        return [g_savedProtoDefinitions copy];
+    }
+}
+
+- (void)clearProtoDefinitions {
+    @synchronized (self) {
+        [g_savedProtoDefinitions removeAllObjects];
+        [self deleteProtoDefinitionsFile];
+        ZPLog(@"Cleared all proto definitions");
+    }
+}
+
+- (NSString *)protoDefinitionsFilePath {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsPath = paths.firstObject;
+    return [documentsPath stringByAppendingPathComponent:@"zooba_proto_definitions.json"];
+}
+
+- (void)saveProtoDefinitionsToFile {
+    if (!g_savedProtoDefinitions || g_savedProtoDefinitions.count == 0) return;
+    
+    NSError *error;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:g_savedProtoDefinitions 
+                                                  options:NSJSONWritingPrettyPrinted 
+                                                    error:&error];
+    
+    if (error) {
+        ZPLog(@"Error serializing proto definitions: %@", error.localizedDescription);
+        return;
+    }
+    
+    NSString *path = [self protoDefinitionsFilePath];
+    BOOL success = [data writeToFile:path atomically:YES];
+    
+    if (success) {
+        ZPLog(@"Proto definitions saved to: %@", path);
+    }
+}
+
+- (void)loadProtoDefinitionsFromFile {
+    NSString *path = [self protoDefinitionsFilePath];
+    
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        ZPLog(@"No saved proto definitions found");
+        return;
+    }
+    
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    if (!data) return;
+    
+    NSError *error;
+    NSArray *definitions = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+    
+    if (error || ![definitions isKindOfClass:[NSArray class]]) {
+        ZPLog(@"Error loading proto definitions: %@", error.localizedDescription);
+        return;
+    }
+    
+    if (!g_savedProtoDefinitions) {
+        g_savedProtoDefinitions = [NSMutableArray array];
+    }
+    
+    [g_savedProtoDefinitions removeAllObjects];
+    [g_savedProtoDefinitions addObjectsFromArray:definitions];
+    
+    ZPLog(@"Loaded %lu proto definitions", (unsigned long)g_savedProtoDefinitions.count);
+}
+
+- (void)deleteProtoDefinitionsFile {
+    NSString *path = [self protoDefinitionsFilePath];
+    [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+}
+
 #pragma mark - Clear
 
 - (void)clearAllTokens {

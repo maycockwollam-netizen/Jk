@@ -201,10 +201,25 @@
     // Title Label
     _titleLabel = [[UILabel alloc] init];
     _titleLabel.text = @"🎯 ZoobaProto";
-    _titleLabel.font = [UIFont boldSystemFontOfSize:20];
+    _titleLabel.font = [UIFont boldSystemFontOfSize:18];
     _titleLabel.textColor = [UIColor whiteColor];
     _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [_headerView addSubview:_titleLabel];
+    
+    // Settings Button
+    _settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_settingsButton setTitle:@"⚙️" forState:UIControlStateNormal];
+    _settingsButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [_settingsButton addTarget:self action:@selector(showSettings) forControlEvents:UIControlEventTouchUpInside];
+    [_headerView addSubview:_settingsButton];
+    
+    // Proto Button
+    _protoButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_protoButton setTitle:@"📄" forState:UIControlStateNormal];
+    _protoButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [_protoButton addTarget:self action:@selector(openProtoFilePicker) forControlEvents:UIControlEventTouchUpInside];
+    [_protoButton setAccessibilityHint:@"Parse .proto file"];
+    [_headerView addSubview:_protoButton];
     
     // Refresh Button
     _refreshButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -241,13 +256,21 @@
         [_titleLabel.centerYAnchor constraintEqualToAnchor:_headerView.centerYAnchor],
         [_titleLabel.leadingAnchor constraintEqualToAnchor:_headerView.leadingAnchor constant:16],
         
-        [_clearButton.centerYAnchor constraintEqualToAnchor:_headerView.centerYAnchor],
-        [_clearButton.trailingAnchor constraintEqualToAnchor:_headerView.trailingAnchor constant:-16],
-        [_clearButton.widthAnchor constraintEqualToConstant:44],
+        [_settingsButton.centerYAnchor constraintEqualToAnchor:_headerView.centerYAnchor],
+        [_settingsButton.trailingAnchor constraintEqualToAnchor:_headerView.trailingAnchor constant:-16],
+        [_settingsButton.widthAnchor constraintEqualToConstant:44],
+        
+        [_protoButton.centerYAnchor constraintEqualToAnchor:_headerView.centerYAnchor],
+        [_protoButton.trailingAnchor constraintEqualToAnchor:_settingsButton.leadingAnchor constant:-4],
+        [_protoButton.widthAnchor constraintEqualToConstant:44],
         
         [_refreshButton.centerYAnchor constraintEqualToAnchor:_headerView.centerYAnchor],
-        [_refreshButton.trailingAnchor constraintEqualToAnchor:_clearButton.leadingAnchor constant:-8],
+        [_refreshButton.trailingAnchor constraintEqualToAnchor:_protoButton.leadingAnchor constant:-4],
         [_refreshButton.widthAnchor constraintEqualToConstant:44],
+        
+        [_clearButton.centerYAnchor constraintEqualToAnchor:_headerView.centerYAnchor],
+        [_clearButton.trailingAnchor constraintEqualToAnchor:_refreshButton.leadingAnchor constant:-4],
+        [_clearButton.widthAnchor constraintEqualToConstant:44],
         
         [_tableView.topAnchor constraintEqualToAnchor:_headerView.bottomAnchor],
         [_tableView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
@@ -294,6 +317,39 @@
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         [self->_clearButton setTitle:@"🗑️" forState:UIControlStateNormal];
     });
+}
+
+- (void)openProtoFilePicker {
+    ZPLog(@"Opening proto file picker...");
+    
+    // Import ProtoUI
+    extern Class ProtoUIClass;
+    
+    // Try to call ProtoUI
+    Class protoUIClass = NSClassFromString(@"ProtoUI");
+    if (protoUIClass) {
+        SEL sharedSEL = NSSelectorFromString(@"shared");
+        if ([protoUIClass respondsToSelector:sharedSEL]) {
+            id protoUI = [protoUIClass performSelector:sharedSEL];
+            SEL pickerSEL = NSSelectorFromString(@"showProtoFilePicker");
+            if ([protoUI respondsToSelector:pickerSEL]) {
+                [protoUI performSelector:pickerSEL];
+                ZPLog(@"ProtoUI file picker opened");
+                return;
+            }
+        }
+    }
+    
+    // Fallback: Show alert
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Proto File Parser"
+                                                                   message:@"Choose a .proto file to parse.\n\nThe parser will extract all message definitions and save them to storage."
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    
+    [self presentViewController:alert animated:YES completion:nil];
+    
+    ZPLog(@"ProtoUI class not found - showing info alert");
 }
 
 #pragma mark - Data

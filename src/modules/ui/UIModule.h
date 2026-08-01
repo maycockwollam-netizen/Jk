@@ -30,6 +30,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UIButton *refreshButton;
 @property (nonatomic, strong) UIButton *clearButton;
+@property (nonatomic, strong) UIButton *protoButton;     // NEW: Proto file picker
+@property (nonatomic, strong) UIButton *settingsButton;   // NEW: Settings
 @property (nonatomic, strong) UIView *headerView;
 
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *tokens;
@@ -40,6 +42,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)clearTokens;
 - (void)showSettings;
 - (void)showTokens;
+- (void)openProtoFilePicker;  // NEW: Open proto file picker
 
 @end
 
