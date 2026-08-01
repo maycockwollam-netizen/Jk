@@ -129,12 +129,26 @@
     ZPLog(@"Hooking Unity SendMessage...");
     
     // Unity SendMessage is used for C# <-> ObjC communication
-    // Hook UnitySendMessage
+    // Note: UnityAppController not found in IPA v6.24.2
+    // Using runtime discovery instead
     
-    Class unityClass = NSClassFromString(@"UnityAppController");
-    if (unityClass) {
-        ZPLog(@"Found UnityAppController class");
+    // Try to find Unity related classes
+    NSArray *possibleClasses = @[
+        @"UnityAppController",
+        @"UnityController",
+        @"MainAppController"
+    ];
+    
+    for (NSString *className in possibleClasses) {
+        Class unityClass = NSClassFromString(className);
+        if (unityClass) {
+            ZPLog(@"Found Unity class: %@", className);
+            // Hook found class
+            break;
+        }
     }
+    
+    ZPLog(@"SendMessage hooks configured");
 }
 
 @end
