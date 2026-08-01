@@ -114,6 +114,19 @@ static void DoDump() {
             if (g_uiModule) {
                 [g_uiModule displayToken:bearer key:@"Bearer"];
             }
+            
+            // Also save to file for easy reading
+            NSString *logPath = @"/var/mobile/Documents/ZoobaProto/tokens.log";
+            NSString *logEntry = [NSString stringWithFormat:@"%@: %@\n", [NSDate date], bearer];
+            [[NSFileManager defaultManager] createDirectoryAtPath:@"/var/mobile/Documents/ZoobaProto/" withIntermediateDirectories:YES attributes:nil error:nil];
+            NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:logPath];
+            if (!fh) {
+                [[NSData data] writeToFile:logPath atomically:YES];
+                fh = [NSFileHandle fileHandleForWritingAtPath:logPath];
+            }
+            [fh seekToEndOfFile];
+            [fh writeData:[logEntry dataUsingEncoding:NSUTF8StringEncoding]];
+            [fh closeFile];
         }
     } @catch (NSException *e) {
         ZPLogError(@"Dump error: %@", e.reason);
