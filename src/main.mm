@@ -1,8 +1,8 @@
 //
 //  main.mm
-//  ZoobaProto v2.1.1-minimal
+//  ZoobaProto v2.1.2
 //
-//  Minimal token dumper - no hooks, no ProtoInterceptor
+//  Minimal token dumper with UI
 //
 
 #import <UIKit/UIKit.h>
@@ -12,16 +12,18 @@
 #import "config/Config.h"
 #import "modules/storage/StorageModule.h"
 #import "modules/utils/UtilsModule.h"
+#import "modules/ui/UIModule.h"
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto] " fmt, ##args)
 #define ZPLogInfo(fmt, args...) NSLog(@"[ZoobaProto][INFO] " fmt, ##args)
 #define ZPLogError(fmt, args...) NSLog(@"[ZoobaProto][ERROR] " fmt, ##args)
 
 static NSString * const kTargetBundleID = @"com.fungames.battleroyale";
-static NSString * const kVersion = @"2.1.1-minimal";
+static NSString * const kVersion = @"2.1.2";
 
 static StorageModule *g_storageModule = nil;
 static UtilsModule *g_utilsModule = nil;
+static UIModule *g_uiModule = nil;
 static BOOL g_initialized = NO;
 
 static void DoTokenDump() {
@@ -40,6 +42,11 @@ static void DoTokenDump() {
             
             if ([Config shared].autoSaveToken) {
                 [g_storageModule saveToken:bearer];
+            }
+            
+            // Show in UI
+            if (g_uiModule) {
+                [g_uiModule displayToken:bearer key:@"Bearer"];
             }
         } else {
             ZPLogInfo(@"No Bearer token found yet");
@@ -78,12 +85,21 @@ static void ZoobaProtoInit() {
         
         @try {
             ZPLogInfo(@"Initializing...");
+            
             g_storageModule = [[StorageModule alloc] init];
             [g_storageModule setup];
+            
             g_utilsModule = [[UtilsModule alloc] init];
             [g_utilsModule setup];
+            
+            // Setup UI
+            g_uiModule = [UIModule shared];
+            [g_uiModule setup];
+            ZPLogInfo(@"UI module ready");
+            
             ZPLogInfo(@"Modules ready!");
             
+            // First dump after 5 seconds
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{
                 DoTokenDump();
@@ -91,6 +107,8 @@ static void ZoobaProtoInit() {
             });
             
             ZPLog(@"ZoobaProto %@ loaded!", kVersion);
+            ZPLog(@"Tap floating ZP button to view tokens");
+            
         } @catch (NSException *e) {
             ZPLogError(@"Init error: %@", e.reason);
         }
