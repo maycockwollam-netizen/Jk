@@ -3,6 +3,7 @@
 //  ZoobaProto
 //
 //  Hooks for Wildlife Studios classes
+//  Based on reverse-engineered Zooba code
 //
 
 #import "WildlifeHooks.h"
@@ -15,15 +16,22 @@
 
 + (void)install {
     ZPLog(@"Installing Wildlife hooks...");
+    ZPLog(@"Based on Wildlife.Platform.Core.dll analysis");
     
-    // Discover all Wildlife classes
-    [self discoverWildlifeClasses];
+    // Hook Account Management
+    [self hookAccountManager];
     
-    // Hook Pitaya classes
-    [self hookPitayaClasses];
+    // Hook Platform Networking (iOS binding)
+    [self hookPlatformNetworking];
     
-    // Hook Platform classes
-    [self hookPlatformClasses];
+    // Hook Unity Bridge
+    [self hookUnityBridge];
+    
+    // Hook Player Info
+    [self hookPlayerInfo];
+    
+    // Hook Storage
+    [self hookStorage];
     
     ZPLog(@"Wildlife hooks installed");
 }
@@ -32,74 +40,212 @@
     ZPLog(@"Uninstalling Wildlife hooks...");
 }
 
-#pragma mark - Class Discovery
+#pragma mark - Account Management
 
-+ (void)discoverWildlifeClasses {
-    ZPLog(@"Discovering Wildlife classes...");
++ (void)hookAccountManager {
+    ZPLog(@"Hooking Wildlife Account Management...");
     
-    int classCount = objc_getClassList(NULL, 0);
-    if (classCount == 0) {
-        ZPLog(@"No classes found!");
-        return;
-    }
+    // From Wildlife.Platform.Core.dll:
+    // PlatformAccountManager class
+    // - Account property (IPlayerAccount)
+    // - SecurityToken property
+    // - Authenticate()
+    // - LoadCurrentAccount()
     
-    Class *classes = (Class *)malloc(sizeof(Class) * classCount);
-    objc_getClassList(classes, classCount);
+    NSArray *accountClasses = @[
+        @"PlatformAccountManager",
+        @"AccountManager",
+        @"WLAuthManager",
+        @"WLAccountManager"
+    ];
     
-    NSArray *prefixes = [Config shared].wildlifeClassPrefixes;
-    int foundCount = 0;
-    
-    for (int i = 0; i < classCount; i++) {
-        Class cls = classes[i];
-        NSString *className = NSStringFromClass(cls);
-        
-        for (NSString *prefix in prefixes) {
-            if ([className hasPrefix:prefix]) {
-                ZPLog(@"Found Wildlife class: %@", className);
-                [self hookClass:cls];
-                foundCount++;
-                break;
-            }
+    for (NSString *className in accountClasses) {
+        Class cls = NSClassFromString(className);
+        if (cls) {
+            ZPLog(@"Found Account class: %@", className);
+            [self hookAccountClass:cls];
         }
     }
-    
-    free(classes);
-    
-    ZPLog(@"Discovered %d Wildlife classes", foundCount);
 }
 
-+ (void)hookClass:(Class)cls {
-    if (!cls) return;
++ (void)hookAccountClass:(Class)cls {
+    // Key methods to hook:
+    // - get_Account / set_Account
+    // - get_SecurityToken / set_SecurityToken
+    // - Authenticate
+    // - LoadCurrentAccount
+    // - CreateOrAuthenticate
     
     unsigned int methodCount = 0;
     Method *methods = class_copyMethodList(cls, &methodCount);
-    
-    if (!methods) return;
     
     for (unsigned int i = 0; i < methodCount; i++) {
         Method method = methods[i];
         SEL selector = method_getName(method);
         NSString *methodName = NSStringFromSelector(selector);
         
-        // Look for interesting methods
-        if ([self isInterestingMethod:methodName]) {
-            ZPLog(@"  Hooking method: %@ in %@", methodName, NSStringFromClass(cls));
-            
-            // In real implementation, would swizzle this method
-            // [self swizzleMethod:selector inClass:cls];
+        // Hook token-related methods
+        if ([self isTokenMethod:methodName]) {
+            ZPLog(@"  🎯 HOOKING: %@ in %@", methodName, NSStringFromClass(cls));
+            // Would swizzle here
         }
     }
     
     free(methods);
 }
 
-- (BOOL)isInterestingMethod:(NSString *)methodName {
+#pragma mark - Platform Networking
+
++ (void)hookPlatformNetworking {
+    ZPLog(@"Hooking Platform Networking...");
+    
+    // From Wildlife.Platform.Core.dll:
+    // PlatformNetworking (C#) -> PlatformNetworkingIOSBinding (ObjC)
+    // - SendRequest
+    // - SetPlatformHeader
+    // - GetPlatformHeaders
+    // - OnRequest event
+    
+    NSArray *networkClasses = @[
+        @"PlatformNetworkingIOSBinding",
+        @"PlatformNetworking",
+        @"WLNetworkClient",
+        @"WLNetworking",
+        @"WildlifeNetworking"
+    ];
+    
+    for (NSString *className in networkClasses) {
+        Class cls = NSClassFromString(className);
+        if (cls) {
+            ZPLog(@"Found Network class: %@", className);
+            [self hookNetworkClass:cls];
+        }
+    }
+}
+
++ (void)hookNetworkClass:(Class)cls {
+    unsigned int methodCount = 0;
+    Method *methods = class_copyMethodList(cls, &methodCount);
+    
+    for (unsigned int i = 0; i < methodCount; i++) {
+        Method method = methods[i];
+        SEL selector = method_getName(method);
+        NSString *methodName = NSStringFromSelector(selector);
+        
+        // Hook request/response methods
+        if ([self isNetworkMethod:methodName]) {
+            ZPLog(@"  🎯 HOOKING: %@", methodName);
+            // Would swizzle here
+        }
+    }
+    
+    free(methods);
+}
+
+#pragma mark - Unity Bridge
+
++ (void)hookUnityBridge {
+    ZPLog(@"Hooking Unity Bridge...");
+    
+    // UnityWebRequestBridge connects ObjC to Unity
+    NSArray *bridgeClasses = @[
+        @"UnityWebRequestBridge",
+        @"UnityBridge",
+        @"WLBridge"
+    ];
+    
+    for (NSString *className in bridgeClasses) {
+        Class cls = NSClassFromString(className);
+        if (cls) {
+            ZPLog(@"Found Bridge class: %@", className);
+            [self hookBridgeClass:cls];
+        }
+    }
+}
+
++ (void)hookBridgeClass:(Class)cls {
+    unsigned int methodCount = 0;
+    Method *methods = class_copyMethodList(cls, &methodCount);
+    
+    for (unsigned int i = 0; i < methodCount; i++) {
+        Method method = methods[i];
+        SEL selector = method_getName(method);
+        NSString *methodName = NSStringFromSelector(selector);
+        ZPLog(@"  Bridge method: %@", methodName);
+    }
+    
+    free(methods);
+}
+
+#pragma mark - Player Info
+
++ (void)hookPlayerInfo {
+    ZPLog(@"Hooking Player Info...");
+    
+    // From Wildlife.Platform.Core.dll:
+    // PlayerAccount class:
+    // - Id (Player ID)
+    // - SecurityToken (JWT)
+    // - TenantId
+    // - AccountData
+    
+    NSArray *playerClasses = @[
+        @"PlayerAccount",
+        @"PlatformPlayer",
+        @"WLPlayer"
+    ];
+    
+    for (NSString *className in playerClasses) {
+        Class cls = NSClassFromString(className);
+        if (cls) {
+            ZPLog(@"Found Player class: %@", className);
+            [self hookPlayerClass:cls];
+        }
+    }
+}
+
++ (void)hookPlayerClass:(Class)cls {
+    unsigned int methodCount = 0;
+    Method *methods = class_copyMethodList(cls, &methodCount);
+    
+    for (unsigned int i = 0; i < methodCount; i++) {
+        Method method = methods[i];
+        SEL selector = method_getName(method);
+        NSString *methodName = NSStringFromSelector(selector);
+        
+        if ([self isTokenMethod:methodName] || 
+            [methodName containsString:@"Player"] ||
+            [methodName containsString:@"Id"]) {
+            ZPLog(@"  🎯 PLAYER: %@", methodName);
+            // Would hook
+        }
+    }
+    
+    free(methods);
+}
+
+#pragma mark - Storage
+
++ (void)hookStorage {
+    ZPLog(@"Hooking Storage...");
+    
+    // Hook PlayerPrefs access
+    // From Wildlife.Persistency.dll
+}
+
+#pragma mark - Method Detection
+
++ (BOOL)isTokenMethod:(NSString *)methodName {
     NSArray *patterns = @[
-        @"token", @"Token", @"TOKEN",
-        @"auth", @"Auth", @"AUTH",
-        @"session", @"Session", @"SESSION",
-        @"login", @"Login", @"LOGIN",
-        @"credential", @"Credential"
+        @"SecurityToken",
+        @"get_SecurityToken",
+        @"set_SecurityToken",
+        @"Token",
+        @"get_Token",
+        @"Auth",
+        @"Account",
+        @"Bearer",
+        @"Authorization"
     ];
     
     for (NSString *pattern in patterns) {
@@ -110,64 +256,24 @@
     return NO;
 }
 
-#pragma mark - Pitaya Classes
-
-+ (void)hookPitayaClasses {
-    ZPLog(@"Hooking Pitaya classes...");
-    
-    NSArray *pitayaClasses = @[
-        @"Pitaya",
-        @"PitayaClient",
-        @"PitayaNetworkClient",
-        @"PitayaSession",
-        @"PitayaMessage"
++ (BOOL)isNetworkMethod:(NSString *)methodName {
+    NSArray *patterns = @[
+        @"SendRequest",
+        @"SetHeader",
+        @"AddHeader",
+        @"GetHeaders",
+        @"GetPlatformHeaders",
+        @"Request",
+        @"Response",
+        @"Send"
     ];
     
-    for (NSString *className in pitayaClasses) {
-        Class cls = NSClassFromString(className);
-        if (cls) {
-            ZPLog(@"Found Pitaya class: %@", className);
-            [self hookPitayaClass:cls];
+    for (NSString *pattern in patterns) {
+        if ([methodName containsString:pattern]) {
+            return YES;
         }
     }
-}
-
-+ (void)hookPitayaClass:(Class)cls {
-    ZPLog(@"Hooking Pitaya class: %@", NSStringFromClass(cls));
-    
-    // Hook message sending methods
-    // Hook message receiving methods
-    // Hook connection methods
-    
-    // In real implementation:
-    // - Hook sendMessage:
-    // - Hook receiveMessage:
-    // - Hook connect:
-    // - Hook disconnect:
-}
-
-#pragma mark - Platform Classes
-
-+ (void)hookPlatformClasses {
-    ZPLog(@"Hooking Platform classes...");
-    
-    NSArray *platformClasses = @[
-        @"PlatformPlayer",
-        @"PlatformIdentification",
-        @"PlatformNetworking",
-        @"PlatformSession",
-        @"WLNetworkClient",
-        @"WLGameClient",
-        @"WLAuthManager"
-    ];
-    
-    for (NSString *className in platformClasses) {
-        Class cls = NSClassFromString(className);
-        if (cls) {
-            ZPLog(@"Found Platform class: %@", className);
-            [self hookClass:cls];
-        }
-    }
+    return NO;
 }
 
 @end

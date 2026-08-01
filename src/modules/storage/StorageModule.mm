@@ -55,8 +55,25 @@
         _foundTokens = [NSMutableDictionary dictionary];
         _tokenKeys = [NSMutableArray array];
         
-        // Default token keys to search
+        // Wildlife Platform storage keys (from reverse engineering)
+        // Based on PlayerAccount, PlatformAccountManager
         [_tokenKeys addObjectsFromArray:@[
+            // PlatformAccountManager keys
+            @"wildlife_last_account",
+            @"wildlife_account_id",
+            @"wildlife_platform_account",
+            @"wl_account",
+            
+            // PlayerPrefsLastAccountKey
+            @"wl_player_prefs_last_account",
+            
+            // SecurityToken related
+            @"security_token",
+            @"securityToken",
+            @"wildlife_security_token",
+            @"platform_security_token",
+            
+            // Generic token keys
             @"wildlife_access_token",
             @"wildlife_auth_token",
             @"access_token",
@@ -65,7 +82,18 @@
             @"wl_access_token",
             @"session_token",
             @"player_token",
-            @"bearer_token"
+            @"bearer_token",
+            
+            // PlayerID
+            @"player_id",
+            @"playerId",
+            @"wl_player_id",
+            @"platform_player_id",
+            
+            // Tenant ID
+            @"tenant_id",
+            @"tenantId",
+            @"wildlife_tenant_id"
         ]];
     }
     return self;
