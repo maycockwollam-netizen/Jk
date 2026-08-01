@@ -24,6 +24,9 @@
 #import "hooks/WildlifeHooks.h"
 #import "hooks/UnityHooks.h"
 
+// NEW UI Menu
+#import "modules/ui/menu/ZoobaProtoMenuModule.h"
+
 // ========== LOGGING ==========
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto] " fmt, ##args)
@@ -45,6 +48,9 @@ static StorageModule *g_storageModule = nil;
 static NetworkModule *g_networkModule = nil;
 static UtilsModule *g_utilsModule = nil;
 static UIModule *g_uiModule = nil;
+
+// NEW UI Menu
+static ZoobaProtoMenu *g_zoobaMenu = nil;
 
 // ========== MODULE INITIALIZATION ==========
 
@@ -73,6 +79,10 @@ static void InitializeModules() {
         g_uiModule = [UIModule shared];
         [g_uiModule setup];
         ZPLogInfo(@"UI module enabled");
+        
+        // Initialize NEW ZoobaProtoMenu
+        g_zoobaMenu = [ZoobaProtoMenu shared];
+        ZPLogInfo(@"ZoobaProtoMenu initialized");
     }
     
     // Initialize ProtoParser module
@@ -260,11 +270,13 @@ static void ZoobaProtoInit() {
         ZPLog(@"");
         ZPLog(@"✅ ZoobaProto loaded successfully!");
         ZPLog(@"   Dump interval: %.0f seconds", [Config shared].dumpInterval);
-        ZPLog(@"   Features: %@", 
+        ZPLog(@"   Features: %@%@%@%@", 
               [Config shared].enableTokenDump ? @"TokenDump " : @"",
               [Config shared].enableNetworkHook ? @"NetworkHook " : @"",
               [Config shared].enablePitayaHook ? @"PitayaHook " : @"",
-              [Config shared].enableUIPanel ? @"UI" : @"");
+              [Config shared].enableUIPanel ? @"UI (New Menu!)" : @"");
+        ZPLog(@"");
+        ZPLog(@"💡 Use the floating bubble (ZP) to access the menu!");
         ZPLog(@"");
         
     } @catch (NSException *exception) {
