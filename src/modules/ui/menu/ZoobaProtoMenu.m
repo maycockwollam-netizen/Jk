@@ -514,23 +514,15 @@
     } else if (gesture.state == UIGestureRecognizerStateEnded) {
         // Snap to edge
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-        CGFloat centerX = frame.origin.x + ZPBubbleSize / 2;
+        CGFloat centerX = _bubble.frame.origin.x + ZPBubbleSize / 2;
         
-        if (centerX < screenWidth / 2) {
-            // Snap left
-            [UIView animateWithDuration:ZPAnimationDurationShort animations:^{
-                CGRect f = self->_bubble.frame;
-                f.origin.x = 20;
-                self->_bubble.frame = f;
-            }];
-        } else {
-            // Snap right
-            [UIView animateWithDuration:ZPAnimationDurationShort animations:^{
-                CGRect f = self->_bubble.frame;
-                f.origin.x = screenWidth - ZPBubbleSize - 20;
-                self->_bubble.frame = f;
-            }];
-        }
+        CGFloat targetX = (centerX < screenWidth / 2) ? 20 : screenWidth - ZPBubbleSize - 20;
+        
+        [UIView animateWithDuration:ZPAnimationDurationShort animations:^{
+            CGRect f = self->_bubble.frame;
+            f.origin.x = targetX;
+            self->_bubble.frame = f;
+        }];
     }
 }
 

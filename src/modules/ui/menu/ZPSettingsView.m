@@ -206,6 +206,10 @@
     ZPSettingsCell *cell = [tableView dequeueReusableCellWithIdentifier:@"SettingsCell" forIndexPath:indexPath];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     
+    // Remove existing targets to prevent duplicate actions on cell reuse
+    [cell.toggleSwitch removeTarget:nil action:NULL forControlEvents:UIControlEventValueChanged];
+    [cell.actionButton removeTarget:nil action:NULL forControlEvents:UIControlEventTouchUpInside];
+    
     switch (indexPath.section) {
         case 0: // General
             switch (indexPath.row) {
