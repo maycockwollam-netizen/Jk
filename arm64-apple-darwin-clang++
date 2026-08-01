@@ -1,0 +1,2 @@
+#!/bin/bash
+exec /tmp/lld-19-extract/usr/bin/clang++ "$@" -target arm64-apple-darwin -isysroot /workspace/theos/sdks/iPhoneOS15.6.sdk

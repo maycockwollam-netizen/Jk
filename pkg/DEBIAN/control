@@ -1,0 +1,8 @@
+Package: com.zoobaproto.testoverlay
+Name: TestOverlay
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Test overlay button
+Maintainer: Test
+Author: Test
+Section: Tweaks
