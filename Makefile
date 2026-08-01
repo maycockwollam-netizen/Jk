@@ -31,6 +31,7 @@ CORE_FILES := $(wildcard $(MODULES_DIR)/core/*.mm) $(wildcard $(MODULES_DIR)/cor
 NETWORK_FILES := $(wildcard $(MODULES_DIR)/network/*.mm) $(wildcard $(MODULES_DIR)/network/*.m)
 STORAGE_FILES := $(wildcard $(MODULES_DIR)/storage/*.mm) $(wildcard $(MODULES_DIR)/storage/*.m)
 UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/utils/*.m)
+UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
 
 # Hooks
 HOOK_FILES := $(wildcard $(HOOKS_DIR)/*.mm) $(wildcard $(HOOKS_DIR)/*.m)
@@ -45,7 +46,8 @@ ZOOBAPROTO_FILES := src/main.mm \
                    $(CORE_FILES) \
                    $(NETWORK_FILES) \
                    $(STORAGE_FILES) \
-                   $(UTILS_FILES)
+                   $(UTILS_FILES) \
+                   $(UI_FILES)
 
 # Frameworks
 ZOOBAPROTO_FRAMEWORKS := Foundation UIKit Security
@@ -97,16 +99,33 @@ ssh-device:
 
 # Package info
 info:
-	@echo "ZoobaProto v$(PACKAGE_VERSION)"
-	@echo "Bundle ID: $(PKG_BUNDLEID)"
-	@echo "Target: $(TARGET)"
+	@echo "=========================================="
+	@echo "  ZoobaProto v$(PACKAGE_VERSION)"
+	@echo "=========================================="
+	@echo "Bundle ID:     $(PKG_BUNDLEID)"
+	@echo "Target:        $(TARGET)"
 	@echo "Architectures: $(ARCHS)"
-	@echo "Files: $(words $(ZOOBAPROTO_FILES)) source files"
+	@echo "Source Files:  $(words $(ZOOBAPROTO_FILES))"
+	@echo ""
+	@echo "Modules:"
+	@echo "  - Core:      $(words $(CORE_FILES)) files"
+	@echo "  - Network:   $(words $(NETWORK_FILES)) files"
+	@echo "  - Storage:   $(words $(STORAGE_FILES)) files"
+	@echo "  - Utils:     $(words $(UTILS_FILES)) files"
+	@echo "  - UI:        $(words $(UI_FILES)) files"
+	@echo "  - Hooks:     $(words $(HOOK_FILES)) files"
+	@echo "  - Config:    $(words $(CONFIG_FILES)) files"
+	@echo "=========================================="
 
 # Development helpers
 dev:
-	@echo "Development Mode"
-	@echo "1. make: Build tweak"
-	@echo "2. make install: Install to device"
-	@echo "3. make logs: View live logs"
-	@echo "4. make ssh-device: SSH to device"
+	@echo "=========================================="
+	@echo "  ZoobaProto Development Mode"
+	@echo "=========================================="
+	@echo "1. make         - Build tweak"
+	@echo "2. make install - Install to device"
+	@echo "3. make logs    - View live logs"
+	@echo "4. make ssh     - SSH to device"
+	@echo "5. make info    - Show project info"
+	@echo "6. make clean   - Clean build artifacts"
+	@echo "=========================================="

@@ -17,6 +17,7 @@
 #import "modules/storage/StorageModule.h"
 #import "modules/network/NetworkModule.h"
 #import "modules/utils/UtilsModule.h"
+#import "modules/ui/UIModule.h"
 
 // Hooks
 #import "hooks/WildlifeHooks.h"
@@ -33,23 +34,22 @@
 
 static NSString * const kTargetBundleID = @"com.wildlife.games.battle.royale.free.zooba";
 static NSString * const kTargetProcessName = @"Zooba";
-
-// ========== VERSION ==========
-
 static NSString * const kVersion = @"2.0.0";
 static NSString * const kBuildDate = @"2024-01-01";
 
-// ========== MODULES ==========
+// ========== MODULE INSTANCES ==========
 
 static CoreModule *g_coreModule = nil;
 static StorageModule *g_storageModule = nil;
 static NetworkModule *g_networkModule = nil;
 static UtilsModule *g_utilsModule = nil;
+static UIModule *g_uiModule = nil;
 
-// ========== INITIALIZATION ==========
+// ========== MODULE INITIALIZATION ==========
 
 static void InitializeModules() {
     ZPLogInfo(@"Initializing ZoobaProto v%@ (Build: %@)", kVersion, kBuildDate);
+    ZPLogInfo(@"Config: %@", [Config shared].targetBundleID);
     
     // Initialize core module
     g_coreModule = [[CoreModule alloc] init];
@@ -67,14 +67,36 @@ static void InitializeModules() {
     g_utilsModule = [[UtilsModule alloc] init];
     [g_utilsModule setup];
     
+    // Initialize UI module
+    if ([Config shared].enableUIPanel) {
+        g_uiModule = [UIModule shared];
+        [g_uiModule setup];
+        ZPLogInfo(@"UI module enabled");
+    }
+    
+    // Log config dump
+    ZPLogDebug(@"Config dump: %@", [Config shared].dumpConfig);
+    
     ZPLogInfo(@"All modules initialized");
 }
+
+// ========== HOOK INSTALLATION ==========
 
 static void InstallHooks() {
     ZPLogInfo(@"Installing hooks...");
     
+    // Validate config first
+    if (![[Config shared] validateConfig]) {
+        ZPLogError(@"Config validation failed: %@", [[Config shared] configValidationErrors]);
+        return;
+    }
+    
     // Install Wildlife hooks
-    [WildlifeHooks install];
+    if ([Config shared].enablePitayaHook) {
+        [WildlifeHooks install];
+    } else {
+        ZPLogInfo(@"Pitaya hooks disabled");
+    }
     
     // Install Unity hooks
     [UnityHooks install];
@@ -82,85 +104,98 @@ static void InstallHooks() {
     ZPLogInfo(@"All hooks installed");
 }
 
-static void ScheduleInitialDump() {
-    ZPLogInfo(@"Scheduling initial token dump in 3 seconds...");
+// ========== TOKEN HANDLING ==========
+
+static void OnTokenFound(NSString *token) {
+    ZPLog(@"🎉 TOKEN FOUND!");
+    ZPLog(@"Token: %@", [token substringToIndex:MIN(50, token.length)]);
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        
-        ZPLogInfo(@"Performing initial token dump...");
-        
+    // Save token
+    if ([Config shared].autoSaveToken) {
+        [g_storageModule saveToken:token];
+        ZPLogInfo(@"Token saved");
+    }
+    
+    // Display in UI
+    if (g_uiModule) {
+        [g_uiModule displayToken:token key:@"Bearer"];
+    }
+    
+    // Notify
+    if ([Config shared].notifyOnToken) {
+        [g_utilsModule notifyTokenFound:token];
+    }
+}
+
+static void PerformInitialDump() {
+    ZPLogInfo(@"Performing initial token dump...");
+    
+    @try {
         // Dump from storage
         [g_storageModule dumpAllTokens];
         
         // Check for Bearer token
         NSString *bearer = [g_storageModule findBearerToken];
         if (bearer) {
-            ZPLog(@"🎉 BEARER TOKEN FOUND!");
-            ZPLog(@"Token: %@", bearer);
-            
-            // Save token
-            if ([Config shared].autoSaveToken) {
-                [g_storageModule saveToken:bearer];
-            }
-            
-            // Notify
-            if ([Config shared].notifyOnToken) {
-                [g_utilsModule notifyTokenFound:bearer];
-            }
+            OnTokenFound(bearer);
         } else {
             ZPLogInfo(@"No Bearer token found yet, will continue monitoring...");
         }
         
-        // Schedule next dump
+    } @catch (NSException *exception) {
+        ZPLogError(@"Exception during token dump: %@", exception.reason);
+    }
+    
+    // Schedule next dump if enabled
+    if ([Config shared].enablePeriodicDump) {
         SchedulePeriodicDump();
-    });
+    }
 }
 
 static void SchedulePeriodicDump() {
-    if (![Config shared].enablePeriodicDump) return;
-    
     NSTimeInterval interval = [Config shared].dumpInterval;
     
     ZPLogDebug(@"Scheduling periodic dump every %.0f seconds", interval);
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, interval * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        [g_storageModule dumpAllTokens];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(interval * NSEC_PER_SEC)), 
+                   dispatch_get_main_queue(), ^{
+        
+        @try {
+            [g_storageModule dumpAllTokens];
+            
+            // Check for new Bearer token
+            NSString *bearer = [g_storageModule findBearerToken];
+            if (bearer) {
+                OnTokenFound(bearer);
+            }
+            
+        } @catch (NSException *exception) {
+            ZPLogError(@"Exception during periodic dump: %@", exception.reason);
+        }
+        
+        // Schedule next
         SchedulePeriodicDump();
     });
 }
 
-// ========== LIFECYCLE ==========
+// ========== APP LIFECYCLE ==========
 
-__attribute__((constructor))
-static void ZoobaProtoInit() {
-    ZPLog(@"===============================================");
-    ZPLog(@"  ZoobaProto v%@", kVersion);
-    ZPLog(@"  Bearer Token Dumper for Zooba");
-    ZPLog(@"  Target: %@", kTargetBundleID);
-    ZPLog(@"===============================================");
-    
-    // Check if target app
-    NSString *currentBundleID = [[NSBundle mainBundle] bundleIdentifier];
-    
-    if (currentBundleID && ![currentBundleID isEqualToString:kTargetBundleID]) {
-        ZPLogDebug(@"Not target app, skipping...");
-        return;
-    }
-    
-    // Initialize
-    InitializeModules();
-    InstallHooks();
-    ScheduleInitialDump();
-    
-    // Register for app lifecycle
+static void RegisterAppLifecycle() {
+    // App became active
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                       object:nil
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification *note) {
         ZPLogDebug(@"App became active");
-        [g_storageModule dumpAllTokens];
+        
+        @try {
+            [g_storageModule dumpAllTokens];
+        } @catch (NSException *exception) {
+            ZPLogError(@"Exception in app became active: %@", exception.reason);
+        }
     }];
     
+    // App will resign active
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillResignActiveNotification
                                                       object:nil
                                                        queue:[NSOperationQueue mainQueue]
@@ -168,6 +203,67 @@ static void ZoobaProtoInit() {
         ZPLogDebug(@"App will resign active");
     }];
     
-    ZPLog(@"ZoobaProto loaded successfully!");
-    ZPLog(@"===============================================");
+    // App will terminate
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillTerminateNotification
+                                                      object:nil
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification *note) {
+        ZPLogInfo(@"App will terminate, saving config...");
+        [[Config shared] saveToFile];
+    }];
+    
+    ZPLogDebug(@"App lifecycle registered");
+}
+
+// ========== ENTRY POINT ==========
+
+__attribute__((constructor))
+static void ZoobaProtoInit() {
+    ZPLog(@"");
+    ZPLog(@"╔══════════════════════════════════════════════╗");
+    ZPLog(@"║        ZoobaProto v%@                    ║", kVersion);
+    ZPLog(@"║        Bearer Token Dumper                  ║");
+    ZPLog(@"╚══════════════════════════════════════════════╝");
+    ZPLog(@"");
+    
+    @try {
+        // Check if target app
+        NSString *currentBundleID = [[NSBundle mainBundle] bundleIdentifier];
+        
+        if (currentBundleID && ![currentBundleID isEqualToString:kTargetBundleID]) {
+            ZPLogDebug(@"Not target app (%@), skipping...", currentBundleID);
+            return;
+        }
+        
+        ZPLogInfo(@"Target app detected: %@", kTargetBundleID);
+        
+        // Initialize all modules
+        InitializeModules();
+        
+        // Install hooks
+        InstallHooks();
+        
+        // Register lifecycle
+        RegisterAppLifecycle();
+        
+        // Perform initial dump after short delay
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), 
+                       dispatch_get_main_queue(), ^{
+            PerformInitialDump();
+        });
+        
+        ZPLog(@"");
+        ZPLog(@"✅ ZoobaProto loaded successfully!");
+        ZPLog(@"   Dump interval: %.0f seconds", [Config shared].dumpInterval);
+        ZPLog(@"   Features: %@", 
+              [Config shared].enableTokenDump ? @"TokenDump " : @"",
+              [Config shared].enableNetworkHook ? @"NetworkHook " : @"",
+              [Config shared].enablePitayaHook ? @"PitayaHook " : @"",
+              [Config shared].enableUIPanel ? @"UI" : @"");
+        ZPLog(@"");
+        
+    } @catch (NSException *exception) {
+        ZPLogError(@"Fatal exception during initialization: %@", exception.reason);
+        ZPLogError(@"Stack trace: %@", exception.callStackSymbols);
+    }
 }
