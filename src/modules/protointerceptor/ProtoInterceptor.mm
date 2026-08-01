@@ -209,39 +209,56 @@ static int hooked_read(int fd, void *buf, size_t count) {
 
 - (void)registerDefaultRoutes {
     // Pitaya uses route IDs for routing messages
-    // These are common IDs - actual ones need to be found from binary
+    // Based on reverse-engineering:
+    
+    // C# Method names found in binary:
+    // - ClientFindMatch, ClientMatchFinish, ClientMatchStart
+    // - CreateMatchmaker, CreateObjectConfig, CreateOfflineMatch
+    // - AuthenticatePlayer (from proto definitions)
+    
+    // IMPORTANT: Route IDs are NOT easily found in binary
+    // Need IL2CPP metadata parser to extract exact IDs
+    
+    // Placeholder IDs - will be populated by runtime discovery
+    // These are guessed based on common Wildlife Studios patterns
     
     // Auth
-    [self registerRouteId:1 withName:@"AuthenticatePlayer"];
-    [self registerRouteId:2 withName:@"AuthenticateAnswer"];
+    [self registerRouteId:1 withName:@"Authenticate"];
+    [self registerRouteId:2 withName:@"AuthAnswer"];
     [self registerRouteId:3 withName:@"Heartbeat"];
     
-    // Match
+    // Matchmaking
     [self registerRouteId:10 withName:@"FindMatch"];
-    [self registerRouteId:11 withName:@"FindMatchAnswer"];
-    [self registerRouteId:12 withName:@"StartMatch"];
+    [self registerRouteId:11 withName:@"MatchFound"];
+    [self registerRouteId:12 withName:@"MatchStart"];
     [self registerRouteId:13 withName:@"MatchData"];
-    [self registerRouteId:14 withName:@"FinishMatch"];
+    [self registerRouteId:14 withName:@"MatchFinish"];
     
-    // Chest
-    [self registerRouteId:20 withName:@"OpenChest"];
-    [self registerRouteId:21 withName:@"OpenChestAnswer"];
-    [self registerRouteId:22 withName:@"ChestData"];
+    // Gameplay (RPCs)
+    [self registerRouteId:20 withName:@"RpcMove"];
+    [self registerRouteId:21 withName:@"RpcAttack"];
+    [self registerRouteId:22 withName:@"RpcUseSkill"];
+    [self registerRouteId:23 withName:@"RpcHit"];
+    [self registerRouteId:24 withName:@"RpcDie"];
+    [self registerRouteId:25 withName:@"RpcRespawn"];
     
-    // Inventory
-    [self registerRouteId:30 withName:@"GetInventory"];
-    [self registerRouteId:31 withName:@"InventoryData"];
+    // Economy
+    [self registerRouteId:30 withName:@"OpenChest"];
+    [self registerRouteId:31 withName:@"ChestData"];
+    [self registerRouteId:32 withName:@"Inventory"];
     
     // Purchase
     [self registerRouteId:40 withName:@"Purchase"];
-    [self registerRouteId:41 withName:@"PurchaseAnswer"];
+    [self registerRouteId:41 withName:@"PurchaseResult"];
     
     // Clan
-    [self registerRouteId:50 withName:@"GetClan"];
-    [self registerRouteId:51 withName:@"ClanData"];
+    [self registerRouteId:50 withName:@"ClanInfo"];
+    [self registerRouteId:51 withName:@"ClanMember"];
     
     // Generic
     [self registerRouteId:100 withName:@"Unknown"];
+    
+    ZPLog(@"Registered %lu route mappings", (unsigned long)_routeMappings.count);
 }
 
 - (void)registerRouteId:(uint16_t)routeId withName:(NSString *)name {
