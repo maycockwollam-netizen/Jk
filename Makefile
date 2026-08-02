@@ -3,7 +3,7 @@
 # iOS Tweak: Bearer Token Dumper for Zooba
 #
 
-THEOS ?= /opt/theos
+THEOS ?= /workspace/theos
 THEOS_DEVICE_IP := localhost
 THEOS_DEVICE_PORT := 2222
 
