@@ -44,9 +44,12 @@
 }
 
 - (NSString *)logFilePath {
-    // Use /var/mobile/Documents for easy access via Filza/iFile
-    NSString *zpDir = @"/var/mobile/Documents/ZoobaProto";
+    // Use Documents folder inside the game app sandbox
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsPath = [paths firstObject];
     
+    // Create ZoobaProto subdirectory inside game's Documents
+    NSString *zpDir = [documentsPath stringByAppendingPathComponent:@"ZoobaProto"];
     [[NSFileManager defaultManager] createDirectoryAtPath:zpDir
                               withIntermediateDirectories:YES
                                                attributes:nil
