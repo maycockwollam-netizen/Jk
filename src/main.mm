@@ -1,134 +1,107 @@
 //
 //  main.mm
-//  ZoobaProto v2.2.0
+//  ZoobaProto UI Overlay Only
 //
 
 #import <UIKit/UIKit.h>
 #import <substrate.h>
-#import <objc/runtime.h>
-
-#import "config/Config.h"
-#import "modules/storage/StorageModule.h"
-#import "modules/utils/UtilsModule.h"
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto] " fmt, ##args)
 
 static NSString * const kTargetBundleID = @"com.fungames.battleroyale";
-static NSString * const kVersion = @"2.2.0";
-
-static StorageModule *g_storage = nil;
-static BOOL g_initialized = NO;
+static NSString * const kVersion = @"1.0.0";
 
 #pragma mark - Overlay Window
 
 @interface ZPOverlay : UIWindow
+@property (nonatomic, strong) UIButton *zpButton;
 @end
 
 @implementation ZPOverlay
 
-- (void)makeKeyAndVisible {
-    ZPLog(@"Making overlay visible");
-    [super makeKeyAndVisible];
-}
-
-@end
-
-#pragma mark - Setup
-
-static void SetupOverlay() {
-    @autoreleasepool {
-        ZPLog(@"Setting up overlay...");
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.windowLevel = UIWindowLevelStatusBar + 1;
+        self.backgroundColor = [UIColor clearColor];
         
-        @try {
-            CGRect screenBounds = [UIScreen mainScreen].bounds;
-            
-            // Create overlay window
-            ZPOverlay *overlay = [[ZPOverlay alloc] initWithFrame:screenBounds];
-            overlay.windowLevel = UIWindowLevelStatusBar + 1;
-            overlay.backgroundColor = [UIColor clearColor];
-            
-            // Root view controller
-            UIViewController *rootVC = [[UIViewController alloc] init];
-            overlay.rootViewController = rootVC;
-            
-            // Button
-            UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-            btn.frame = CGRectMake(screenBounds.size.width - 80, 60, 70, 70);
-            btn.backgroundColor = [UIColor colorWithRed:0.1 green:0.4 blue:0.9 alpha:1.0];
-            btn.layer.cornerRadius = 35;
-            btn.layer.borderWidth = 3;
-            btn.layer.borderColor = [UIColor whiteColor].CGColor;
-            
-            [btn setTitle:@"ZP" forState:UIControlStateNormal];
-            [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-            btn.titleLabel.font = [UIFont boldSystemFontOfSize:24];
-            
-            [btn addTarget:rootVC action:@selector(buttonTapped) forControlEvents:UIControlEventTouchUpInside];
-            
-            [rootVC.view addSubview:btn];
-            
-            [overlay makeKeyAndVisible];
-            
-            ZPLog(@"Overlay setup complete!");
-            
-        } @catch (NSException *e) {
-            ZPLog(@"Setup error: %@", e.reason);
-        }
+        UIViewController *vc = [[UIViewController alloc] init];
+        vc.view.backgroundColor = [UIColor clearColor];
+        self.rootViewController = vc;
+        
+        [self setupButtonInView:vc.view];
     }
+    return self;
 }
 
-// Button action
-@interface UIViewController (ZPAction)
-- (void)buttonTapped;
-@end
-
-@implementation UIViewController (ZPAction)
+- (void)setupButtonInView:(UIView *)view {
+    CGFloat size = 70;
+    CGFloat x = [UIScreen mainScreen].bounds.size.width - size - 20;
+    
+    self.zpButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.zpButton.frame = CGRectMake(x, 80, size, size);
+    self.zpButton.backgroundColor = [UIColor colorWithRed:0.1 green:0.5 blue:1.0 alpha:1.0];
+    self.zpButton.layer.cornerRadius = size / 2;
+    self.zpButton.layer.borderWidth = 4;
+    self.zpButton.layer.borderColor = [UIColor whiteColor].CGColor;
+    self.zpButton.layer.shadowColor = [UIColor blackColor].CGColor;
+    self.zpButton.layer.shadowOffset = CGSizeMake(0, 3);
+    self.zpButton.layer.shadowRadius = 8;
+    self.zpButton.layer.shadowOpacity = 0.5;
+    
+    [self.zpButton setTitle:@"ZP" forState:UIControlStateNormal];
+    [self.zpButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.zpButton.titleLabel.font = [UIFont boldSystemFontOfSize:26];
+    
+    [self.zpButton addTarget:self action:@selector(buttonTapped) forControlEvents:UIControlEventTouchUpInside];
+    
+    [view addSubview:self.zpButton];
+    ZPLog(@"Button added to view");
+}
 
 - (void)buttonTapped {
-    ZPLog(@"Button tapped!");
+    ZPLog(@"ZP Button tapped!");
     
-    @try {
-        NSArray *tokens = nil;
-        if (g_storage) {
-            [g_storage dumpAllTokens];
-            NSString *bearer = [g_storage findBearerToken];
-            if (bearer) {
-                ZPLog(@"TOKEN: %@", [bearer substringToIndex:MIN(50, bearer.length)]);
-            }
-        }
-    } @catch (NSException *e) {
-        ZPLog(@"Dump error: %@", e.reason);
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"ZoobaProto"
+                                                                  message:@"UI Overlay Working!"
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    
+    UIViewController *topVC = self.rootViewController;
+    while (topVC.presentedViewController) {
+        topVC = topVC.presentedViewController;
     }
+    [topVC presentViewController:alert animated:YES completion:nil];
 }
 
 @end
+
+static ZPOverlay *g_overlay = nil;
 
 #pragma mark - Entry Point
 
 __attribute__((constructor))
 static void ZoobaProtoInit() {
-    ZPLog(@"ZoobaProto %@", kVersion);
+    ZPLog(@"ZoobaProto UI v%@ loading...", kVersion);
     
     if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:kTargetBundleID]) {
         return;
     }
     
-    ZPLog(@"Target app detected, loading...");
+    ZPLog(@"Target app detected!");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        if (g_initialized) return;
-        g_initialized = YES;
+        if (g_overlay) return;
+        
+        ZPLog(@"Creating overlay...");
         
         @try {
-            g_storage = [[StorageModule alloc] init];
-            [g_storage setup];
+            g_overlay = [[ZPOverlay alloc] initWithFrame:[UIScreen mainScreen].bounds];
+            [g_overlay makeKeyAndVisible];
             
-            SetupOverlay();
-            
-            ZPLog(@"ZoobaProto %@ loaded!", kVersion);
-            
+            ZPLog(@"Overlay ready!");
         } @catch (NSException *e) {
-            ZPLog(@"Init error: %@", e.reason);
+            ZPLog(@"Error: %@", e.reason);
         }
     });
 }

@@ -40,55 +40,29 @@ MODULES_DIR := src/modules
 HOOKS_DIR := src/hooks
 
 # Core Modules
-CORE_FILES := $(wildcard $(MODULES_DIR)/core/*.mm) $(wildcard $(MODULES_DIR)/core/*.m)
-NETWORK_FILES := $(wildcard $(MODULES_DIR)/network/*.mm) $(wildcard $(MODULES_DIR)/network/*.m)
-STORAGE_FILES := $(wildcard $(MODULES_DIR)/storage/*.mm) $(wildcard $(MODULES_DIR)/storage/*.m)
-UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/utils/*.m)
 UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
-PROTO_FILES := $(wildcard $(MODULES_DIR)/proto/*.mm) $(wildcard $(MODULES_DIR)/proto/*.m)
-PROTO_INTERCEPTOR_FILES := $(wildcard $(MODULES_DIR)/protointerceptor/*.mm) $(wildcard $(MODULES_DIR)/protointerceptor/*.m)
-PROTO_UI_FILES := $(wildcard $(MODULES_DIR)/ui/ProtoUI.mm)
-
-# Hooks
-HOOK_FILES := $(wildcard $(HOOKS_DIR)/*.mm) $(wildcard $(HOOKS_DIR)/*.m)
-SWIZZLER_FILES := $(wildcard $(HOOKS_DIR)/Swizzler.mm) $(wildcard $(HOOKS_DIR)/Swizzler.m)
-
-# Config
+UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/utils/*.m)
 CONFIG_FILES := $(wildcard src/config/*.mm) $(wildcard src/config/*.m)
 
 # All source files
 ZOOBAPROTO_FILES := src/main.mm \
                    $(CONFIG_FILES) \
-                   $(SWIZZLER_FILES) \
-                   $(HOOK_FILES) \
-                   $(CORE_FILES) \
-                   $(NETWORK_FILES) \
-                   $(STORAGE_FILES) \
                    $(UTILS_FILES) \
-                   $(UI_FILES) \
-                   $(PROTO_UI_FILES) \
-                   $(PROTO_FILES) \
-                   $(PROTO_INTERCEPTOR_FILES)
+                   $(UI_FILES)
 
 # Frameworks
 ZOOBAPROTO_FRAMEWORKS := Foundation UIKit Security
 ZOOBAPROTO_PRIVATE_FRAMEWORKS :=
 
-# External Libraries - fishhook for C function hooking
-ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip -lfishhook
+# External Libraries
+ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip
 
 # Flags
 ZOOBAPROTO_CFLAGS := -fobjc-arc -w -DDEBUG=$(DEBUG) \
     -I/workspace/project/Jk/src \
     -I/workspace/project/Jk/src/config \
-    -I/workspace/project/Jk/src/modules/core \
-    -I/workspace/project/Jk/src/modules/network \
-    -I/workspace/project/Jk/src/modules/storage \
     -I/workspace/project/Jk/src/modules/utils \
-    -I/workspace/project/Jk/src/modules/ui \
-    -I/workspace/project/Jk/src/modules/proto \
-    -I/workspace/project/Jk/src/modules/protointerceptor \
-    -I/workspace/project/Jk/src/hooks
+    -I/workspace/project/Jk/src/modules/ui
 
 # Include Theos
 include $(THEOS)/makefiles/common.mk
