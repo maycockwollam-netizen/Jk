@@ -44,11 +44,9 @@
 }
 
 - (NSString *)logFilePath {
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsPath = [paths firstObject];
+    // Use /var/mobile/Documents for easy access via Filza/iFile
+    NSString *zpDir = @"/var/mobile/Documents/ZoobaProto";
     
-    // Create ZoobaProto subdirectory
-    NSString *zpDir = [documentsPath stringByAppendingPathComponent:@"ZoobaProto"];
     [[NSFileManager defaultManager] createDirectoryAtPath:zpDir
                               withIntermediateDirectories:YES
                                                attributes:nil
