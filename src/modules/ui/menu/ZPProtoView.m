@@ -88,7 +88,7 @@
 @property (nonatomic, strong) UILabel *numberLabel;
 @property (nonatomic, strong) UILabel *typeLabel;
 @property (nonatomic, strong) UILabel *nameLabel;
-@property (nonatomic, strong) UIButton *copyButton;
+@property (nonatomic, strong) UIButton *duplicateButton;
 @end
 
 @implementation ZPProtoFieldCell
@@ -127,11 +127,11 @@
     _nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.contentView addSubview:_nameLabel];
     
-    _copyButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_copyButton setImage:[UIImage systemImageNamed:@"doc.on.doc"] forState:UIControlStateNormal];
-    _copyButton.tintColor = [ZPColors textSecondary];
-    _copyButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.contentView addSubview:_copyButton];
+    _duplicateButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_duplicateButton setImage:[UIImage systemImageNamed:@"doc.on.doc"] forState:UIControlStateNormal];
+    _duplicateButton.tintColor = [ZPColors textSecondary];
+    _duplicateButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.contentView addSubview:_duplicateButton];
     
     [NSLayoutConstraint activateConstraints:@[
         [_numberLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:12],
@@ -146,10 +146,10 @@
         [_nameLabel.leadingAnchor constraintEqualToAnchor:_typeLabel.trailingAnchor constant:6],
         [_nameLabel.centerYAnchor constraintEqualToAnchor:_numberLabel.centerYAnchor],
         
-        [_copyButton.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-12],
-        [_copyButton.centerYAnchor constraintEqualToAnchor:_numberLabel.centerYAnchor],
-        [_copyButton.widthAnchor constraintEqualToConstant:32],
-        [_copyButton.heightAnchor constraintEqualToConstant:32]
+        [_duplicateButton.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-12],
+        [_duplicateButton.centerYAnchor constraintEqualToAnchor:_numberLabel.centerYAnchor],
+        [_duplicateButton.widthAnchor constraintEqualToConstant:32],
+        [_duplicateButton.heightAnchor constraintEqualToConstant:32]
     ]];
 }
 

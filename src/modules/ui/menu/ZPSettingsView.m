@@ -12,7 +12,7 @@
 
 #pragma mark - Settings Cell
 
-@interface ZPSettingsCell : UITableViewCell
+@interface ZPSettingsCell2 : UITableViewCell
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UILabel *descLabel;
 @property (nonatomic, strong) UISwitch *toggleSwitch;
@@ -20,7 +20,7 @@
 @property (nonatomic, assign) BOOL isDestructive;
 @end
 
-@implementation ZPSettingsCell
+@implementation ZPSettingsCell2
 
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
@@ -172,7 +172,7 @@
     _tableView.rowHeight = 70;
     _tableView.sectionHeaderHeight = 36;
     _tableView.translatesAutoresizingMaskIntoConstraints = NO;
-    [_tableView registerClass:[ZPSettingsCell class] forCellReuseIdentifier:@"SettingsCell"];
+    [_tableView registerClass:[ZPSettingsCell2 class] forCellReuseIdentifier:@"SettingsCell"];
     [self addSubview:_tableView];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -203,7 +203,7 @@
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    ZPSettingsCell *cell = [tableView dequeueReusableCellWithIdentifier:@"SettingsCell" forIndexPath:indexPath];
+    ZPSettingsCell2 *cell = [tableView dequeueReusableCellWithIdentifier:@"SettingsCell" forIndexPath:indexPath];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     
     // Remove existing targets to prevent duplicate actions on cell reuse

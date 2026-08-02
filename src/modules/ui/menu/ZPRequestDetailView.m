@@ -15,7 +15,7 @@
 @interface ZPDetailRow : UIView
 @property (nonatomic, strong) UILabel *keyLabel;
 @property (nonatomic, strong) UILabel *valueLabel;
-@property (nonatomic, strong) UIButton *copyButton;
+@property (nonatomic, strong) UIButton *duplicateButton;
 @end
 
 @implementation ZPDetailRow
@@ -42,12 +42,12 @@
     _valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_valueLabel];
     
-    _copyButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_copyButton setImage:[UIImage systemImageNamed:@"doc.on.doc"] forState:UIControlStateNormal];
-    _copyButton.tintColor = [ZPColors textSecondary];
-    _copyButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [_copyButton addTarget:self action:@selector(copyTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self addSubview:_copyButton];
+    _duplicateButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_duplicateButton setImage:[UIImage systemImageNamed:@"doc.on.doc"] forState:UIControlStateNormal];
+    _duplicateButton.tintColor = [ZPColors textSecondary];
+    _duplicateButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [_duplicateButton addTarget:self action:@selector(copyTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:_duplicateButton];
     
     [NSLayoutConstraint activateConstraints:@[
         [_keyLabel.topAnchor constraintEqualToAnchor:self.topAnchor],
@@ -55,21 +55,21 @@
         
         [_valueLabel.topAnchor constraintEqualToAnchor:_keyLabel.bottomAnchor constant:4],
         [_valueLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
-        [_valueLabel.trailingAnchor constraintEqualToAnchor:_copyButton.leadingAnchor constant:-8],
+        [_valueLabel.trailingAnchor constraintEqualToAnchor:_duplicateButton.leadingAnchor constant:-8],
         [_valueLabel.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
         
-        [_copyButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-        [_copyButton.centerYAnchor constraintEqualToAnchor:_valueLabel.centerYAnchor],
-        [_copyButton.widthAnchor constraintEqualToConstant:32],
-        [_copyButton.heightAnchor constraintEqualToConstant:32]
+        [_duplicateButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
+        [_duplicateButton.centerYAnchor constraintEqualToAnchor:_valueLabel.centerYAnchor],
+        [_duplicateButton.widthAnchor constraintEqualToConstant:32],
+        [_duplicateButton.heightAnchor constraintEqualToConstant:32]
     ]];
 }
 
 - (void)setKey:(NSString *)key value:(NSString *)value copyable:(BOOL)copyable {
     _keyLabel.text = key;
     _valueLabel.text = value;
-    _copyButton.hidden = !copyable;
-    _copyButton.accessibilityHint = value;
+    _duplicateButton.hidden = !copyable;
+    _duplicateButton.accessibilityHint = value;
 }
 
 - (void)copyTapped {

@@ -44,7 +44,7 @@ CORE_FILES := $(wildcard $(MODULES_DIR)/core/*.mm) $(wildcard $(MODULES_DIR)/cor
 NETWORK_FILES := $(wildcard $(MODULES_DIR)/network/*.mm) $(wildcard $(MODULES_DIR)/network/*.m)
 STORAGE_FILES := $(wildcard $(MODULES_DIR)/storage/*.mm) $(wildcard $(MODULES_DIR)/storage/*.m)
 UTILS_FILES := $(wildcard $(MODULES_DIR)/utils/*.mm) $(wildcard $(MODULES_DIR)/utils/*.m)
-UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m)
+UI_FILES := $(wildcard $(MODULES_DIR)/ui/*.mm) $(wildcard $(MODULES_DIR)/ui/*.m) $(wildcard $(MODULES_DIR)/ui/menu/*.mm) $(wildcard $(MODULES_DIR)/ui/menu/*.m)
 PROTO_FILES := $(wildcard $(MODULES_DIR)/proto/*.mm) $(wildcard $(MODULES_DIR)/proto/*.m)
 PROTO_INTERCEPTOR_FILES := $(wildcard $(MODULES_DIR)/protointerceptor/*.mm) $(wildcard $(MODULES_DIR)/protointerceptor/*.m)
 PROTO_UI_FILES := $(wildcard $(MODULES_DIR)/ui/ProtoUI.mm)
@@ -53,8 +53,14 @@ PROTO_UI_FILES := $(wildcard $(MODULES_DIR)/ui/ProtoUI.mm)
 HOOK_FILES := $(wildcard $(HOOKS_DIR)/*.mm) $(wildcard $(HOOKS_DIR)/*.m)
 SWIZZLER_FILES := $(wildcard $(HOOKS_DIR)/Swizzler.mm) $(wildcard $(HOOKS_DIR)/Swizzler.m)
 
+# Stubs
+STUB_FILES := $(wildcard src/stubs/*.m) $(wildcard src/stubs/*.mm)
+
 # Config
 CONFIG_FILES := $(wildcard src/config/*.mm) $(wildcard src/config/*.m)
+
+# Fishhook (from theos vendor)
+FISHHOOK_FILE := $(THEOS)/vendor/orion/fishhook/fishhook.c
 
 # All source files
 ZOOBAPROTO_FILES := src/main.mm \
@@ -68,14 +74,16 @@ ZOOBAPROTO_FILES := src/main.mm \
                    $(UI_FILES) \
                    $(PROTO_UI_FILES) \
                    $(PROTO_FILES) \
-                   $(PROTO_INTERCEPTOR_FILES)
+                   $(PROTO_INTERCEPTOR_FILES) \
+                   $(STUB_FILES) \
+                   $(FISHHOOK_FILE)
 
 # Frameworks
 ZOOBAPROTO_FRAMEWORKS := Foundation UIKit Security
 ZOOBAPROTO_PRIVATE_FRAMEWORKS :=
 
-# External Libraries - fishhook for C function hooking
-ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip -lfishhook
+# External Libraries - fishhook is compiled directly from source
+ZOOBAPROTO_LDFLAGS := -Wl,-dead_strip
 
 # Flags
 ZOOBAPROTO_CFLAGS := -fobjc-arc -w -DDEBUG=$(DEBUG) \
@@ -86,6 +94,7 @@ ZOOBAPROTO_CFLAGS := -fobjc-arc -w -DDEBUG=$(DEBUG) \
     -I/workspace/project/Jk/src/modules/storage \
     -I/workspace/project/Jk/src/modules/utils \
     -I/workspace/project/Jk/src/modules/ui \
+    -I/workspace/project/Jk/src/modules/ui/menu \
     -I/workspace/project/Jk/src/modules/proto \
     -I/workspace/project/Jk/src/modules/protointerceptor \
     -I/workspace/project/Jk/src/hooks
