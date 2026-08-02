@@ -8,7 +8,6 @@
 
 #define ZPLog(fmt, args...) NSLog(@"[ZoobaProto] " fmt, ##args)
 
-static NSString * const kTargetBundleID = @"com.fungames.battleroyale";
 static NSString * const kVersion = @"1.0.0";
 
 #pragma mark - Overlay Window
@@ -83,12 +82,6 @@ static ZPOverlay *g_overlay = nil;
 __attribute__((constructor))
 static void ZoobaProtoInit() {
     ZPLog(@"ZoobaProto UI v%@ loading...", kVersion);
-    
-    if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:kTargetBundleID]) {
-        return;
-    }
-    
-    ZPLog(@"Target app detected!");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         if (g_overlay) return;
